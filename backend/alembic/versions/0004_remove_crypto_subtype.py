@@ -14,6 +14,7 @@ depends_on = None
 
 
 def upgrade():
+    op.execute("ALTER TABLE accounts ALTER COLUMN subtype DROP DEFAULT")
     op.execute("UPDATE accounts SET subtype = 'savings' WHERE subtype = 'crypto'")
     op.execute("ALTER TYPE accountsubtypeenum RENAME TO accountsubtypeenum_old")
     op.execute("CREATE TYPE accountsubtypeenum AS ENUM ('daily', 'savings')")
@@ -22,10 +23,12 @@ def upgrade():
         ALTER COLUMN subtype TYPE accountsubtypeenum
         USING subtype::text::accountsubtypeenum
     """)
+    op.execute("ALTER TABLE accounts ALTER COLUMN subtype SET DEFAULT 'daily'::accountsubtypeenum")
     op.execute("DROP TYPE accountsubtypeenum_old")
 
 
 def downgrade():
+    op.execute("ALTER TABLE accounts ALTER COLUMN subtype DROP DEFAULT")
     op.execute("ALTER TYPE accountsubtypeenum RENAME TO accountsubtypeenum_old")
     op.execute("CREATE TYPE accountsubtypeenum AS ENUM ('daily', 'savings', 'crypto')")
     op.execute("""
@@ -33,4 +36,5 @@ def downgrade():
         ALTER COLUMN subtype TYPE accountsubtypeenum
         USING subtype::text::accountsubtypeenum
     """)
+    op.execute("ALTER TABLE accounts ALTER COLUMN subtype SET DEFAULT 'daily'::accountsubtypeenum")
     op.execute("DROP TYPE accountsubtypeenum_old")
