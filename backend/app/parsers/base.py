@@ -1,5 +1,5 @@
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from typing import Optional
@@ -17,6 +17,15 @@ class ParsedTransaction:
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+@dataclass
+class ParsedMetadata:
+    iban: Optional[str] = None
+    current_balance: Optional[Decimal] = None
+
+
 class BaseParser:
     def parse(self, file_bytes: bytes) -> list[ParsedTransaction]:
         raise NotImplementedError
+
+    def parse_metadata(self, file_bytes: bytes) -> ParsedMetadata:
+        return ParsedMetadata()

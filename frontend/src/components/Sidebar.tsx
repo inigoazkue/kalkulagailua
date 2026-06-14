@@ -1,9 +1,10 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, List, Upload, TrendingUp, LogOut } from 'lucide-react'
+import { LayoutDashboard, List, Upload, TrendingUp, LogOut, Wallet } from 'lucide-react'
 import { clsx } from 'clsx'
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/accounts', label: 'Cuentas', icon: Wallet },
   { to: '/transactions', label: 'Transacciones', icon: List },
   { to: '/import', label: 'Importar', icon: Upload },
   { to: '/investments', label: 'Inversiones', icon: TrendingUp },

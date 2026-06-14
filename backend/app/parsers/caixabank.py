@@ -3,10 +3,43 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 import pandas as pd
-from app.parsers.base import BaseParser, ParsedTransaction
+from app.parsers.base import BaseParser, ParsedTransaction, ParsedMetadata
 
 
 class CaixaBankParser(BaseParser):
+    def parse_metadata(self, file_bytes: bytes) -> ParsedMetadata:
+        iban = None
+        try:
+            for encoding in ("utf-8-sig", "latin-1", "utf-8"):
+                for sep in (";", ","):
+                    try:
+                        df = pd.read_csv(io.BytesIO(file_bytes), sep=sep, header=None, encoding=encoding, nrows=2)
+                        if df.shape[1] >= 2:
+                            # Row 1 (index 1): Titular;IBAN;...
+                            raw_iban = str(df.iloc[1, 1]).strip()
+                            if raw_iban.startswith("ES") or raw_iban.startswith("FR") or len(raw_iban) > 10:
+                                iban = raw_iban
+                            break
+                    except Exception:
+                        continue
+                else:
+                    continue
+                break
+        except Exception:
+            pass
+
+        # Current balance = Saldo of first (most recent) transaction
+        current_balance = None
+        try:
+            txs = self.parse(file_bytes)
+            if txs and txs[0].balance is not None:
+                current_balance = txs[0].balance
+        except Exception:
+            pass
+
+        return ParsedMetadata(iban=iban, current_balance=current_balance)
+
+
     def parse(self, file_bytes: bytes) -> list[ParsedTransaction]:
         for encoding in ("utf-8-sig", "latin-1", "utf-8"):
             for sep in (";", ","):

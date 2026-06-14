@@ -7,12 +7,40 @@ const api = axios.create({
 
 export default api
 
+export type AccountSubtype = 'daily' | 'savings' | 'investment' | 'crypto'
+export type BankId = 'caixabank' | 'myinvestor' | 'trade_republic' | 'bit2me'
+
 export interface Account {
   id: number
   name: string
-  bank: string
-  account_type: string
+  bank: BankId
+  subtype: AccountSubtype
+  iban: string | null
+  color: string
+  include_in_savings: boolean
+  show_on_dashboard: boolean
+  current_balance: string | null
+  balance_date: string | null
   created_at: string
+}
+
+export interface AccountCreate {
+  name: string
+  bank: BankId
+  subtype: AccountSubtype
+  iban?: string
+  color?: string
+  include_in_savings?: boolean
+  show_on_dashboard?: boolean
+}
+
+export interface AccountUpdate {
+  name?: string
+  subtype?: AccountSubtype
+  iban?: string
+  color?: string
+  include_in_savings?: boolean
+  show_on_dashboard?: boolean
 }
 
 export interface CategoryKeyword {
@@ -87,6 +115,15 @@ export interface ImportResult {
 
 export const fetchAccounts = () => api.get<Account[]>('/accounts').then(r => r.data)
 
+export const createAccount = (data: AccountCreate) =>
+  api.post<Account>('/accounts', data).then(r => r.data)
+
+export const updateAccount = (id: number, data: AccountUpdate) =>
+  api.put<Account>(`/accounts/${id}`, data).then(r => r.data)
+
+export const deleteAccount = (id: number) =>
+  api.delete(`/accounts/${id}`)
+
 export const fetchCategories = () => api.get<Category[]>('/categories').then(r => r.data)
 
 export const createCategory = (data: { name: string; category_type: string; color: string; keywords: string[] }) =>
@@ -126,10 +163,10 @@ export const createInvestmentTransaction = (data: {
   transaction_type: string
 }) => api.post('/investments/transactions', data).then(r => r.data)
 
-export const importFile = (bank: string, file: File) => {
+export const importFile = (accountId: number, file: File) => {
   const form = new FormData()
   form.append('file', file)
-  return api.post<ImportResult>(`/imports/${bank}`, form, {
+  return api.post<ImportResult>(`/imports/${accountId}`, form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then(r => r.data)
 }

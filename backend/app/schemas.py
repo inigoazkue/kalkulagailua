@@ -2,17 +2,42 @@ from datetime import datetime, date
 from decimal import Decimal
 from typing import Optional
 from pydantic import BaseModel
-from app.models import BankEnum, AccountTypeEnum, CategoryTypeEnum, AssetTypeEnum, InvestmentTransactionTypeEnum
+from app.models import BankEnum, AccountSubtypeEnum, CategoryTypeEnum, AssetTypeEnum, InvestmentTransactionTypeEnum
 
 
 class AccountOut(BaseModel):
     id: int
     name: str
     bank: BankEnum
-    account_type: AccountTypeEnum
+    subtype: AccountSubtypeEnum
+    iban: Optional[str]
+    color: str
+    include_in_savings: bool
+    show_on_dashboard: bool
+    current_balance: Optional[Decimal]
+    balance_date: Optional[date]
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class AccountCreate(BaseModel):
+    name: str
+    bank: BankEnum
+    subtype: AccountSubtypeEnum
+    iban: Optional[str] = None
+    color: str = "#3b82f6"
+    include_in_savings: bool = False
+    show_on_dashboard: bool = True
+
+
+class AccountUpdate(BaseModel):
+    name: Optional[str] = None
+    subtype: Optional[AccountSubtypeEnum] = None
+    iban: Optional[str] = None
+    color: Optional[str] = None
+    include_in_savings: Optional[bool] = None
+    show_on_dashboard: Optional[bool] = None
 
 
 class CategoryKeywordOut(BaseModel):

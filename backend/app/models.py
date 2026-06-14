@@ -19,9 +19,10 @@ class BankEnum(str, enum.Enum):
     bit2me = "bit2me"
 
 
-class AccountTypeEnum(str, enum.Enum):
-    bank = "bank"
-    broker = "broker"
+class AccountSubtypeEnum(str, enum.Enum):
+    daily = "daily"
+    savings = "savings"
+    investment = "investment"
     crypto = "crypto"
 
 
@@ -50,7 +51,13 @@ class Account(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     bank: Mapped[BankEnum] = mapped_column(SAEnum(BankEnum), nullable=False)
-    account_type: Mapped[AccountTypeEnum] = mapped_column(SAEnum(AccountTypeEnum), nullable=False)
+    subtype: Mapped[AccountSubtypeEnum] = mapped_column(SAEnum(AccountSubtypeEnum), nullable=False, default=AccountSubtypeEnum.daily)
+    iban: Mapped[str | None] = mapped_column(String(34), nullable=True)
+    color: Mapped[str] = mapped_column(String(7), nullable=False, default="#3b82f6")
+    include_in_savings: Mapped[bool] = mapped_column(Boolean, default=False)
+    show_on_dashboard: Mapped[bool] = mapped_column(Boolean, default=True)
+    current_balance: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
+    balance_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
     transactions: Mapped[list["Transaction"]] = relationship("Transaction", back_populates="account")

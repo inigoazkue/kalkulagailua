@@ -1,8 +1,9 @@
+from datetime import date
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
-from app.models import Account, Transaction, TransactionCategory, BankEnum, AccountTypeEnum
+from app.models import Account, Transaction, TransactionCategory, BankEnum
 from app.schemas import ImportResult
 from app.parsers.caixabank import CaixaBankParser
 from app.parsers.myinvestor import MyInvestorParser
@@ -10,44 +11,50 @@ from app.parsers.trade_republic import TradeRepublicParser
 from app.parsers.bit2me import Bit2meParser
 from app.services.categorizer import auto_categorize
 
-router = APIRouter()
+router = APIRouter(prefix="/imports", tags=["imports"])
+
+PARSER_MAP = {
+    BankEnum.caixabank: CaixaBankParser,
+    BankEnum.myinvestor: MyInvestorParser,
+    BankEnum.trade_republic: TradeRepublicParser,
+    BankEnum.bit2me: Bit2meParser,
+}
 
 
-async def _get_or_create_account(db: AsyncSession, bank: BankEnum, account_type: AccountTypeEnum) -> Account:
-    result = await db.execute(
-        select(Account).where(Account.bank == bank, Account.account_type == account_type)
-    )
+@router.post("/{account_id}", response_model=ImportResult)
+async def import_file(
+    account_id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Account).where(Account.id == account_id))
     account = result.scalar_one_or_none()
-    if account is None:
-        account = Account(
-            name=bank.value.replace("_", " ").title(),
-            bank=bank,
-            account_type=account_type,
-        )
-        db.add(account)
-        await db.flush()
-    return account
+    if not account:
+        raise HTTPException(status_code=404, detail="Cuenta no encontrada")
 
+    parser_class = PARSER_MAP.get(account.bank)
+    if not parser_class:
+        raise HTTPException(status_code=400, detail=f"Sin parser para {account.bank}")
 
-async def _import_transactions(
-    db: AsyncSession,
-    bank: BankEnum,
-    account_type: AccountTypeEnum,
-    file_bytes: bytes,
-    parser_class,
-) -> ImportResult:
-    account = await _get_or_create_account(db, bank, account_type)
-
+    content = await file.read()
     parser = parser_class()
-    try:
-        parsed = parser.parse(file_bytes)
-    except Exception as e:
-        raise HTTPException(status_code=422, detail=f"Parse error: {str(e)}")
 
-    existing_hashes_result = await db.execute(
+    metadata = parser.parse_metadata(content)
+    if metadata.current_balance is not None:
+        account.current_balance = metadata.current_balance
+        account.balance_date = date.today()
+    if metadata.iban and not account.iban:
+        account.iban = metadata.iban
+
+    try:
+        parsed = parser.parse(content)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Error de parseo: {str(e)}")
+
+    existing_result = await db.execute(
         select(Transaction.raw_hash).where(Transaction.account_id == account.id)
     )
-    existing_hashes = set(existing_hashes_result.scalars().all())
+    existing_hashes = set(existing_result.scalars().all())
 
     imported = 0
     duplicates = 0
@@ -82,35 +89,3 @@ async def _import_transactions(
 
     await db.commit()
     return ImportResult(imported=imported, duplicates=duplicates)
-
-
-@router.post("/imports/caixabank", response_model=ImportResult)
-async def import_caixabank(
-    file: UploadFile = File(...), db: AsyncSession = Depends(get_db)
-):
-    content = await file.read()
-    return await _import_transactions(db, BankEnum.caixabank, AccountTypeEnum.bank, content, CaixaBankParser)
-
-
-@router.post("/imports/myinvestor", response_model=ImportResult)
-async def import_myinvestor(
-    file: UploadFile = File(...), db: AsyncSession = Depends(get_db)
-):
-    content = await file.read()
-    return await _import_transactions(db, BankEnum.myinvestor, AccountTypeEnum.broker, content, MyInvestorParser)
-
-
-@router.post("/imports/trade_republic", response_model=ImportResult)
-async def import_trade_republic(
-    file: UploadFile = File(...), db: AsyncSession = Depends(get_db)
-):
-    content = await file.read()
-    return await _import_transactions(db, BankEnum.trade_republic, AccountTypeEnum.broker, content, TradeRepublicParser)
-
-
-@router.post("/imports/bit2me", response_model=ImportResult)
-async def import_bit2me(
-    file: UploadFile = File(...), db: AsyncSession = Depends(get_db)
-):
-    content = await file.read()
-    return await _import_transactions(db, BankEnum.bit2me, AccountTypeEnum.crypto, content, Bit2meParser)
