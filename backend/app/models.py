@@ -22,7 +22,6 @@ class BankEnum(str, enum.Enum):
 class AccountSubtypeEnum(str, enum.Enum):
     daily = "daily"
     savings = "savings"
-    crypto = "crypto"
 
 
 class CategoryTypeEnum(str, enum.Enum):

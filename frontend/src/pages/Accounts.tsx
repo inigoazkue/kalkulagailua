@@ -14,13 +14,11 @@ const BANK_LABELS: Record<BankId, string> = {
 const SUBTYPE_LABELS: Record<AccountSubtype, string> = {
   daily: 'Corriente',
   savings: 'Ahorro',
-  crypto: 'Crypto',
 }
 
 const SUBTYPE_COLORS: Record<AccountSubtype, string> = {
   daily: 'bg-blue-500/20 text-blue-300',
   savings: 'bg-green-500/20 text-green-300',
-  crypto: 'bg-orange-500/20 text-orange-300',
 }
 
 const COLOR_PRESETS = ['#3b82f6', '#22c55e', '#f97316', '#8b5cf6', '#ec4899', '#06b6d4', '#ef4444', '#eab308', '#6b7280']
@@ -29,7 +27,7 @@ const fmt = (val: string | number) =>
   Number(val).toLocaleString('es', { style: 'currency', currency: 'EUR' })
 
 const BANKS: BankId[] = ['caixabank', 'myinvestor', 'trade_republic', 'bit2me']
-const SUBTYPES: AccountSubtype[] = ['daily', 'savings', 'crypto']
+const SUBTYPES: AccountSubtype[] = ['daily', 'savings']
 
 type FormData = AccountCreate & { id?: number }
 

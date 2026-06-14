@@ -7,7 +7,7 @@ const api = axios.create({
 
 export default api
 
-export type AccountSubtype = 'daily' | 'savings' | 'crypto'
+export type AccountSubtype = 'daily' | 'savings'
 export type BankId = 'caixabank' | 'myinvestor' | 'trade_republic' | 'bit2me'
 
 export interface Account {
