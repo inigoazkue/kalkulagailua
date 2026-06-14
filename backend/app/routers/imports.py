@@ -1,3 +1,4 @@
+from collections import Counter
 from datetime import date
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,9 +59,12 @@ async def import_file(
 
     imported = 0
     duplicates = 0
+    occurrence_counter: Counter = Counter()
 
     for pt in parsed:
-        h = pt.to_hash()
+        key = (str(pt.date), pt.description, str(pt.amount))
+        occurrence_counter[key] += 1
+        h = pt.to_hash(occurrence_counter[key])
         if h in existing_hashes:
             duplicates += 1
             continue

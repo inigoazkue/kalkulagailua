@@ -12,8 +12,15 @@ class ParsedTransaction:
     amount: Decimal
     balance: Optional[Decimal] = None
 
-    def to_hash(self) -> str:
-        raw = f"{self.date}|{self.description}|{self.amount}"
+    def to_hash(self, occurrence: int = 1) -> str:
+        if occurrence == 1:
+            # Backward-compatible: matches hashes already stored in the DB
+            raw = f"{self.date}|{self.description}|{self.amount}"
+        else:
+            # Disambiguate duplicate (date, description, amount) within the same file.
+            # Use running balance when available (always unique); otherwise use position counter.
+            suffix = str(self.balance) if self.balance is not None else f"occ:{occurrence}"
+            raw = f"{self.date}|{self.description}|{self.amount}|{suffix}"
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
