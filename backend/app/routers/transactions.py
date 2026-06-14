@@ -62,6 +62,7 @@ async def get_analytics_data(
     # Categorized expenses grouped by category
     cat_q = (
         select(
+            Category.id,
             Category.name,
             Category.color,
             Category.category_type,
@@ -75,7 +76,7 @@ async def get_analytics_data(
     )
     cat_rows = (await db.execute(cat_q)).all()
     categories = [
-        {"name": r.name, "color": r.color, "category_type": r.category_type.value, "total": float(r.total)}
+        {"id": r.id, "name": r.name, "color": r.color, "category_type": r.category_type.value, "total": float(r.total)}
         for r in cat_rows
     ]
 
@@ -87,7 +88,7 @@ async def get_analytics_data(
     )
     uncat_total = float((await db.execute(uncat_q)).scalar() or 0)
     if uncat_total > 0:
-        categories.append({"name": "Sin categoría", "color": "#6b7280", "category_type": "variable_expense", "total": uncat_total})
+        categories.append({"id": None, "name": "Sin categoría", "color": "#6b7280", "category_type": "variable_expense", "total": uncat_total})
 
     income = sum(d["income"] for d in daily)
     fixed_exp = sum(c["total"] for c in categories if c["category_type"] == "fixed_expense")
@@ -114,6 +115,7 @@ async def list_transactions(
     category_id: Optional[int] = None,
     account_id: Optional[int] = None,
     category_type: Optional[str] = None,
+    metric: Optional[str] = None,
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=2000),
     db: AsyncSession = Depends(get_db),
@@ -135,7 +137,28 @@ async def list_transactions(
         .order_by(Transaction.date.desc(), Transaction.id.desc())
     )
 
-    if category_id is not None:
+    if metric == 'income':
+        # All positive-amount transactions
+        query = query.where(Transaction.amount > 0)
+    elif metric in ('fixed_expense', 'investment'):
+        ct = CategoryTypeEnum(metric)
+        query = (query
+            .join(TransactionCategory, Transaction.id == TransactionCategory.transaction_id)
+            .join(Category, TransactionCategory.category_id == Category.id)
+            .where(Category.category_type == ct))
+    elif metric == 'variable_expense':
+        # Negative AND (uncategorized OR categorized as variable_expense)
+        query = (query
+            .outerjoin(TransactionCategory, Transaction.id == TransactionCategory.transaction_id)
+            .outerjoin(Category, TransactionCategory.category_id == Category.id)
+            .where(Transaction.amount < 0)
+            .where(or_(TransactionCategory.id == None, Category.category_type == CategoryTypeEnum.variable_expense)))
+    elif metric == 'uncategorized':
+        # Negative AND no category
+        query = (query
+            .outerjoin(TransactionCategory, Transaction.id == TransactionCategory.transaction_id)
+            .where(Transaction.amount < 0, TransactionCategory.id == None))
+    elif category_id is not None:
         query = query.join(
             TransactionCategory,
             Transaction.id == TransactionCategory.transaction_id,

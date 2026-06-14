@@ -170,7 +170,7 @@ export const fetchPayrollDates = () =>
   api.get<{ dates: string[] }>('/transactions/payroll-dates').then(r => r.data)
 
 export interface AnalyticsDay { date: string; income: number; expenses: number }
-export interface AnalyticsCategory { name: string; color: string; category_type: string; total: number }
+export interface AnalyticsCategory { id: number | null; name: string; color: string; category_type: string; total: number }
 export interface AnalyticsData {
   daily: AnalyticsDay[]
   categories: AnalyticsCategory[]

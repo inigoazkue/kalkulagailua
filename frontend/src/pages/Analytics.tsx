@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from 'recharts'
-import { fetchAccounts, fetchPayrollDates, fetchAnalyticsData } from '../api/client'
+import { fetchAccounts, fetchPayrollDates, fetchAnalyticsData, AnalyticsCategory } from '../api/client'
 import { clsx } from 'clsx'
 
 type PeriodType = 'payroll' | 'month' | 'quarter' | 'year' | 'custom'
@@ -62,14 +62,12 @@ function computePeriod(
     case 'month': {
       const d = new Date(now.getFullYear(), now.getMonth() - monthOffset, 1)
       const y = d.getFullYear(), m = d.getMonth()
-      const last = new Date(y, m + 1, 0).getDate()
-      return { start: `${y}-${pad(m + 1)}-01`, end: `${y}-${pad(m + 1)}-${pad(last)}` }
+      return { start: `${y}-${pad(m + 1)}-01`, end: `${y}-${pad(m + 1)}-${pad(new Date(y, m + 1, 0).getDate())}` }
     }
     case 'quarter': {
       const curQ = Math.floor(now.getMonth() / 3)
       const total = now.getFullYear() * 4 + curQ - quarterOffset
-      const y = Math.floor(total / 4)
-      const q = total % 4
+      const y = Math.floor(total / 4), q = total % 4
       const sm = q * 3, em = sm + 2
       return { start: `${y}-${pad(sm + 1)}-01`, end: `${y}-${pad(em + 1)}-${pad(new Date(y, em + 1, 0).getDate())}` }
     }
@@ -136,20 +134,48 @@ export default function Analytics() {
   const pieData = analyticsData?.categories ?? []
   const barInterval = barData.length > 20 ? Math.floor(barData.length / 10) : 0
 
-  function goToTransactions(categoryType?: string) {
-    if (!period) return
-    const p = new URLSearchParams({ start: period.start, end: period.end })
+  // Build shared URL params
+  function txParams(extra: Record<string, string> = {}) {
+    const p = new URLSearchParams()
+    if (period) { p.set('start', period.start); p.set('end', period.end) }
     if (account) p.set('account_id', String(account.id))
-    if (categoryType) p.set('category_type', categoryType)
+    Object.entries(extra).forEach(([k, v]) => p.set(k, v))
+    return p.toString()
+  }
+
+  // Metric card navigation — uses `metric` param that replicates analytics logic exactly
+  function goMetric(metric: string) {
+    navigate(`/transactions?${txParams({ metric })}`)
+  }
+
+  // Bar click: navigate to that specific day
+  function handleBarClick(data: any) {
+    if (!data?.activeLabel) return
+    const day = data.activeLabel as string
+    // Use start=day&end=day for the clicked date, keep account
+    const p = new URLSearchParams()
+    p.set('start', day)
+    p.set('end', day)
+    if (account) p.set('account_id', String(account.id))
     navigate(`/transactions?${p.toString()}`)
   }
 
+  // Pie click: navigate to that category's transactions
+  function handlePieClick(entry: AnalyticsCategory) {
+    if (entry.id === null) {
+      // "Sin categoría" → uncategorized negative transactions in the period
+      navigate(`/transactions?${txParams({ metric: 'uncategorized' })}`)
+    } else {
+      navigate(`/transactions?${txParams({ category_id: String(entry.id) })}`)
+    }
+  }
+
   const metrics = [
-    { label: 'Ingresos', value: summary.income, color: 'text-green-400', categoryType: 'income' },
-    { label: 'Gastos fijos', value: summary.fixed_expenses, color: 'text-red-400', categoryType: 'fixed_expense' },
-    { label: 'Gastos variables', value: summary.variable_expenses, color: 'text-orange-400', categoryType: 'variable_expense' },
-    { label: 'Inversión', value: summary.investment, color: 'text-purple-400', categoryType: 'investment' },
-    { label: 'Neto', value: summary.net, color: summary.net >= 0 ? 'text-blue-400' : 'text-red-400', categoryType: undefined },
+    { label: 'Ingresos', value: summary.income, color: 'text-green-400', metric: 'income' },
+    { label: 'Gastos fijos', value: summary.fixed_expenses, color: 'text-red-400', metric: 'fixed_expense' },
+    { label: 'Gastos variables', value: summary.variable_expenses, color: 'text-orange-400', metric: 'variable_expense' },
+    { label: 'Inversión', value: summary.investment, color: 'text-purple-400', metric: 'investment' },
+    { label: 'Neto', value: summary.net, color: summary.net >= 0 ? 'text-blue-400' : 'text-red-400', metric: '' },
   ]
 
   return (
@@ -175,28 +201,24 @@ export default function Analytics() {
             Marca una cuenta como "Cuenta nómina" en Ajustes → Cuentas
           </span>
         )}
-
         {periodType === 'month' && (
           <select value={monthOffset} onChange={e => setMonthOffset(Number(e.target.value))}
             className="bg-slate-700 text-white text-sm rounded-lg px-3 py-1.5 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500">
             {monthOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         )}
-
         {periodType === 'quarter' && (
           <select value={quarterOffset} onChange={e => setQuarterOffset(Number(e.target.value))}
             className="bg-slate-700 text-white text-sm rounded-lg px-3 py-1.5 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500">
             {quarterOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         )}
-
         {periodType === 'year' && (
           <select value={yearOffset} onChange={e => setYearOffset(Number(e.target.value))}
             className="bg-slate-700 text-white text-sm rounded-lg px-3 py-1.5 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500">
             {yearOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         )}
-
         {periodType === 'custom' && (
           <div className="flex items-center gap-2">
             <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
@@ -206,7 +228,6 @@ export default function Analytics() {
               className="bg-slate-700 text-white text-sm rounded-lg px-3 py-1.5 border border-slate-600 focus:outline-none" />
           </div>
         )}
-
         {period && (
           <span className="text-xs text-slate-500 ml-auto">
             {fmtDate(period.start)} – {fmtDate(period.end)}
@@ -234,34 +255,37 @@ export default function Analytics() {
             ))}
           </div>
 
-          {/* Metric cards */}
+          {/* Metric cards — clickable, navigate with exact analytics logic */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-            {metrics.map(({ label, value, color, categoryType }) => (
+            {metrics.map(({ label, value, color, metric }) => (
               <button key={label}
-                onClick={() => goToTransactions(categoryType)}
-                disabled={!categoryType || !period}
+                onClick={() => metric && period && goMetric(metric)}
+                disabled={!metric || !period}
                 className={clsx(
                   'bg-slate-800 rounded-xl p-4 text-left transition-colors',
-                  categoryType ? 'hover:bg-slate-700 cursor-pointer' : 'cursor-default'
+                  metric ? 'hover:bg-slate-700 cursor-pointer' : 'cursor-default'
                 )}>
                 <div className="text-xs text-slate-400 uppercase tracking-wide">{label}</div>
                 <div className={`text-xl font-bold mt-1 ${color}`}>
                   {isLoading ? <span className="text-slate-600">—</span> : fmt(value)}
                 </div>
-                {categoryType && <div className="text-xs text-slate-600 mt-1">Ver transacciones →</div>}
+                {metric && <div className="text-xs text-slate-600 mt-1">Ver transacciones →</div>}
               </button>
             ))}
           </div>
 
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Bar chart — click a bar to see that day's transactions */}
             <div className="bg-slate-800 rounded-xl p-5">
-              <h3 className="text-sm font-medium text-slate-300 mb-4">Ingresos y gastos diarios</h3>
+              <h3 className="text-sm font-medium text-slate-300 mb-1">Ingresos y gastos diarios</h3>
+              <p className="text-xs text-slate-500 mb-3">Haz clic en una barra para ver las transacciones de ese día</p>
               {isLoading ? (
                 <div className="flex items-center justify-center h-48 text-slate-500 text-sm">Cargando...</div>
               ) : barData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={barData} barSize={barData.length > 25 ? 4 : 7} barGap={1}>
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={barData} barSize={barData.length > 25 ? 4 : 7} barGap={1}
+                    onClick={handleBarClick} style={{ cursor: 'pointer' }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                     <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 10 }}
                       tickFormatter={fmtDate} interval={barInterval} />
@@ -279,17 +303,24 @@ export default function Analytics() {
               )}
             </div>
 
+            {/* Pie chart — click a slice to see that category's transactions */}
             <div className="bg-slate-800 rounded-xl p-5">
-              <h3 className="text-sm font-medium text-slate-300 mb-4">Gastos por categoría</h3>
+              <h3 className="text-sm font-medium text-slate-300 mb-1">Gastos por categoría</h3>
+              <p className="text-xs text-slate-500 mb-3">Haz clic en un sector para ver esas transacciones</p>
               {isLoading ? (
                 <div className="flex items-center justify-center h-48 text-slate-500 text-sm">Cargando...</div>
               ) : pieData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={280}>
+                <ResponsiveContainer width="100%" height={260}>
                   <PieChart>
                     <Pie data={pieData} dataKey="total" nameKey="name" cx="50%" cy="50%"
                       outerRadius={90}
                       label={({ percent }) => percent > 0.04 ? `${(percent * 100).toFixed(0)}%` : ''}
-                      labelLine={false}>
+                      labelLine={false}
+                      onClick={(_data, _index, event) => {
+                        event.stopPropagation()
+                        handlePieClick(_data as AnalyticsCategory)
+                      }}
+                      style={{ cursor: 'pointer' }}>
                       {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                     </Pie>
                     <Tooltip

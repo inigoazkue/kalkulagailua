@@ -79,15 +79,16 @@ export default function Transactions() {
   const [start, setStart] = useState(searchParams.get('start') ?? '')
   const [end, setEnd] = useState(searchParams.get('end') ?? '')
   const [accountId, setAccountId] = useState<string>(searchParams.get('account_id') ?? '')
-  const [categoryId, setCategoryId] = useState<string>('')
+  const [categoryId, setCategoryId] = useState<string>(searchParams.get('category_id') ?? '')
   const [categoryType, setCategoryType] = useState<string>(searchParams.get('category_type') ?? '')
+  const [metric, setMetric] = useState<string>(searchParams.get('metric') ?? '')
   const limit = 50
 
   const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: fetchAccounts })
   const { data: categories = [] } = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
 
   const { data, isLoading } = useQuery({
-    queryKey: ['transactions', page, start, end, accountId, categoryId, categoryType],
+    queryKey: ['transactions', page, start, end, accountId, categoryId, categoryType, metric],
     queryFn: () =>
       fetchTransactions({
         page,
@@ -97,6 +98,7 @@ export default function Transactions() {
         account_id: accountId ? Number(accountId) : undefined,
         category_id: categoryId ? Number(categoryId) : undefined,
         category_type: categoryType || undefined,
+        metric: metric || undefined,
       }),
   })
 
@@ -148,7 +150,21 @@ export default function Transactions() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-semibold text-white">Transacciones</h2>
+      <div className="flex items-center gap-3">
+        <h2 className="text-xl font-semibold text-white">Transacciones</h2>
+        {metric && (
+          <span className="flex items-center gap-1.5 text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded-full">
+            {CATEGORY_TYPE_LABELS[metric] ?? metric}
+            <button onClick={() => { setMetric(''); setPage(1) }} className="hover:text-white">✕</button>
+          </span>
+        )}
+        {categoryId && categories.find(c => c.id === Number(categoryId)) && (
+          <span className="flex items-center gap-1.5 text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded-full">
+            {categories.find(c => c.id === Number(categoryId))?.name}
+            <button onClick={() => { setCategoryId(''); setPage(1) }} className="hover:text-white">✕</button>
+          </span>
+        )}
+      </div>
 
       <div className="bg-slate-800 rounded-xl p-4 flex flex-wrap gap-3">
         <input
