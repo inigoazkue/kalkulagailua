@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchPositions, fetchAssets, createAsset, InvestmentPosition } from '../api/client'
+import { fetchPositions, createAsset, InvestmentPosition } from '../api/client'
 import { Plus, X, TrendingUp, TrendingDown } from 'lucide-react'
 import { clsx } from 'clsx'
 
