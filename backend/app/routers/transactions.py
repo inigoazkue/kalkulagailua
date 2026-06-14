@@ -1,3 +1,4 @@
+import re
 from datetime import date
 from decimal import Decimal
 from typing import Optional
@@ -6,10 +7,62 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.orm import selectinload
 from app.database import get_db
-from app.models import Transaction, TransactionCategory, Category, CategoryTypeEnum, Account
+from app.models import Transaction, TransactionCategory, Category, CategoryTypeEnum, Account, CategoryKeyword
 from app.schemas import (
     TransactionOut, TransactionListOut, TransactionSummaryOut, AssignCategoryIn
 )
+
+_BANKING_STOPWORDS = frozenset({
+    'compra', 'pago', 'cargo', 'abono', 'transferencia', 'recibo', 'ingreso',
+    'orden', 'retirada', 'reintegro', 'cajero', 'bizum', 'comision', 'comision',
+    'adeudo', 'concepto', 'tarjeta', 'cuenta', 'movimiento', 'operacion',
+    'domiciliado', 'domiciliacion', 'para', 'desde', 'hasta', 'euro', 'euros',
+    'importe', 'fecha', 'referencia', 'enviado', 'recibido', 'realizado',
+    'efectuado', 'banco', 'entidad', 'oficina', 'numero', 'numero',
+})
+
+
+def _extract_keywords(description: str) -> list[str]:
+    words = re.findall(r'[^\W\d_]+', description)
+    seen: set[str] = set()
+    result = []
+    for w in words:
+        if len(w) < 4:
+            continue
+        lower = w.lower()
+        if lower not in _BANKING_STOPWORDS and lower not in seen:
+            seen.add(lower)
+            result.append(lower)
+    return result
+
+
+async def _auto_learn(db: AsyncSession, tx_id: int, tx_description: str, category_id: int) -> None:
+    kw_result = await db.execute(
+        select(CategoryKeyword).where(CategoryKeyword.category_id == category_id)
+    )
+    existing = {kw.keyword.lower() for kw in kw_result.scalars().all()}
+
+    new_keywords = [kw for kw in _extract_keywords(tx_description) if kw not in existing]
+    for kw in new_keywords:
+        db.add(CategoryKeyword(category_id=category_id, keyword=kw))
+    if new_keywords:
+        await db.flush()
+
+    all_keywords = list(existing) + new_keywords
+    if not all_keywords:
+        return
+
+    keyword_filter = or_(*[Transaction.description.ilike(f'%{kw}%') for kw in all_keywords])
+    uncat_ids_result = await db.execute(
+        select(Transaction.id)
+        .outerjoin(TransactionCategory, Transaction.id == TransactionCategory.transaction_id)
+        .where(TransactionCategory.id == None, keyword_filter, Transaction.id != tx_id)
+    )
+    uncat_ids = [r[0] for r in uncat_ids_result.all()]
+    for tid in uncat_ids:
+        db.add(TransactionCategory(transaction_id=tid, category_id=category_id, is_manual=False))
+    if new_keywords or uncat_ids:
+        await db.commit()
 
 router = APIRouter()
 
@@ -279,6 +332,8 @@ async def assign_category(
 
     await db.commit()
     await db.refresh(tx)
+
+    await _auto_learn(db, transaction_id, tx.description, body.category_id)
 
     tx_result2 = await db.execute(
         select(Transaction)
