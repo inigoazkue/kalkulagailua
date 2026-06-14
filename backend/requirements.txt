@@ -1,0 +1,11 @@
+fastapi>=0.111
+uvicorn[standard]
+sqlalchemy[asyncio]>=2.0
+asyncpg
+alembic
+pandas
+openpyxl
+yfinance
+httpx
+python-multipart
+pydantic-settings
