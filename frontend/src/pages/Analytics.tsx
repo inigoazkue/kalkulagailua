@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from 'recharts'
-import { fetchAccounts, fetchTransactions, fetchPayrollDates, Transaction } from '../api/client'
+import { fetchAccounts, fetchPayrollDates, fetchAnalyticsData } from '../api/client'
 import { clsx } from 'clsx'
 
 type PeriodType = 'payroll' | 'month' | 'quarter' | 'year' | 'custom'
@@ -45,30 +45,6 @@ function buildPayrollCycles(dates: string[]) {
   return cycles
 }
 
-function buildMonthOptions(now: Date) {
-  return Array.from({ length: 24 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    return { value: i, label: d.toLocaleString('es', { month: 'long', year: 'numeric' }) }
-  })
-}
-
-function buildQuarterOptions(now: Date) {
-  const curQ = Math.floor(now.getMonth() / 3)
-  return Array.from({ length: 8 }, (_, i) => {
-    const total = now.getFullYear() * 4 + curQ - i
-    const y = Math.floor(total / 4)
-    const q = total % 4
-    return { value: i, label: `Q${q + 1} ${y}` }
-  })
-}
-
-function buildYearOptions(now: Date) {
-  return Array.from({ length: 5 }, (_, i) => ({
-    value: i,
-    label: String(now.getFullYear() - i),
-  }))
-}
-
 function computePeriod(
   type: PeriodType,
   cycles: { start: string; end: string }[],
@@ -94,10 +70,8 @@ function computePeriod(
       const total = now.getFullYear() * 4 + curQ - quarterOffset
       const y = Math.floor(total / 4)
       const q = total % 4
-      const sm = q * 3
-      const em = sm + 2
-      const lastDay = new Date(y, em + 1, 0).getDate()
-      return { start: `${y}-${pad(sm + 1)}-01`, end: `${y}-${pad(em + 1)}-${pad(lastDay)}` }
+      const sm = q * 3, em = sm + 2
+      return { start: `${y}-${pad(sm + 1)}-01`, end: `${y}-${pad(em + 1)}-${pad(new Date(y, em + 1, 0).getDate())}` }
     }
     case 'year': {
       const y = now.getFullYear() - yearOffset
@@ -105,37 +79,6 @@ function computePeriod(
     }
     case 'custom':
       return customStart && customEnd ? { start: customStart, end: customEnd } : null
-  }
-}
-
-function aggregateChartData(items: Transaction[]) {
-  let income = 0, fixedExp = 0, varExp = 0, invest = 0
-  const byDay: Record<string, { date: string; Ingresos: number; Gastos: number }> = {}
-  const byCat: Record<string, { name: string; color: string; value: number }> = {}
-
-  for (const tx of items) {
-    const amount = Number(tx.amount)
-    if (!byDay[tx.date]) byDay[tx.date] = { date: tx.date, Ingresos: 0, Gastos: 0 }
-    if (amount > 0) {
-      byDay[tx.date].Ingresos += amount
-      income += amount
-    } else {
-      byDay[tx.date].Gastos += Math.abs(amount)
-      const catType = tx.category_assignment?.category.category_type
-      const catName = tx.category_assignment?.category.name ?? 'Sin categoría'
-      const catColor = tx.category_assignment?.category.color ?? '#6b7280'
-      if (!byCat[catName]) byCat[catName] = { name: catName, color: catColor, value: 0 }
-      byCat[catName].value += Math.abs(amount)
-      if (catType === 'fixed_expense') fixedExp += Math.abs(amount)
-      else if (catType === 'investment') invest += Math.abs(amount)
-      else varExp += Math.abs(amount)
-    }
-  }
-
-  return {
-    barData: Object.values(byDay).sort((a, b) => a.date.localeCompare(b.date)),
-    pieData: Object.values(byCat).filter(d => d.value > 0).sort((a, b) => b.value - a.value),
-    summary: { income, fixedExp, varExp, invest, net: income - fixedExp - varExp - invest },
   }
 }
 
@@ -156,12 +99,25 @@ export default function Analytics() {
   const { data: payrollData } = useQuery({ queryKey: ['payroll-dates'], queryFn: fetchPayrollDates })
 
   const cycles = useMemo(() => buildPayrollCycles(payrollData?.dates ?? []), [payrollData])
-  const monthOptions = useMemo(() => buildMonthOptions(now), [now])
-  const quarterOptions = useMemo(() => buildQuarterOptions(now), [now])
-  const yearOptions = useMemo(() => buildYearOptions(now), [now])
+
+  const monthOptions = useMemo(() =>
+    Array.from({ length: 24 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      return { value: i, label: d.toLocaleString('es', { month: 'long', year: 'numeric' }) }
+    }), [now])
+
+  const quarterOptions = useMemo(() => {
+    const curQ = Math.floor(now.getMonth() / 3)
+    return Array.from({ length: 8 }, (_, i) => {
+      const total = now.getFullYear() * 4 + curQ - i
+      return { value: i, label: `Q${(total % 4) + 1} ${Math.floor(total / 4)}` }
+    })
+  }, [now])
+
+  const yearOptions = useMemo(() =>
+    Array.from({ length: 5 }, (_, i) => ({ value: i, label: String(now.getFullYear() - i) })), [now])
 
   const effectiveType: PeriodType = periodType === 'payroll' && !cycles.length ? 'month' : periodType
-
   const period = useMemo(
     () => computePeriod(effectiveType, cycles, cycleIdx, monthOffset, quarterOffset, yearOffset, customStart, customEnd),
     [effectiveType, cycles, cycleIdx, monthOffset, quarterOffset, yearOffset, customStart, customEnd]
@@ -169,17 +125,15 @@ export default function Analytics() {
 
   const account = accounts[accountIdx] ?? null
 
-  const { data: txList } = useQuery({
-    queryKey: ['analytics-txns', account?.id, period?.start, period?.end],
-    queryFn: () => fetchTransactions({ account_id: account!.id, start: period!.start, end: period!.end, limit: 2000 }),
+  const { data: analyticsData, isLoading } = useQuery({
+    queryKey: ['analytics-data', account?.id, period?.start, period?.end],
+    queryFn: () => fetchAnalyticsData({ account_id: account!.id, start: period!.start, end: period!.end }),
     enabled: !!account && !!period,
   })
 
-  const { barData, pieData, summary } = useMemo(
-    () => aggregateChartData(txList?.items ?? []),
-    [txList]
-  )
-
+  const summary = analyticsData?.summary ?? { income: 0, fixed_expenses: 0, variable_expenses: 0, investment: 0, net: 0 }
+  const barData = analyticsData?.daily ?? []
+  const pieData = analyticsData?.categories ?? []
   const barInterval = barData.length > 20 ? Math.floor(barData.length / 10) : 0
 
   function goToTransactions(categoryType?: string) {
@@ -192,27 +146,24 @@ export default function Analytics() {
 
   const metrics = [
     { label: 'Ingresos', value: summary.income, color: 'text-green-400', categoryType: 'income' },
-    { label: 'Gastos fijos', value: summary.fixedExp, color: 'text-red-400', categoryType: 'fixed_expense' },
-    { label: 'Gastos variables', value: summary.varExp, color: 'text-orange-400', categoryType: 'variable_expense' },
-    { label: 'Inversión', value: summary.invest, color: 'text-purple-400', categoryType: 'investment' },
+    { label: 'Gastos fijos', value: summary.fixed_expenses, color: 'text-red-400', categoryType: 'fixed_expense' },
+    { label: 'Gastos variables', value: summary.variable_expenses, color: 'text-orange-400', categoryType: 'variable_expense' },
+    { label: 'Inversión', value: summary.investment, color: 'text-purple-400', categoryType: 'investment' },
     { label: 'Neto', value: summary.net, color: summary.net >= 0 ? 'text-blue-400' : 'text-red-400', categoryType: undefined },
   ]
 
   return (
     <div className="space-y-5">
-      {/* Period selector row */}
+      {/* Period selector */}
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-xl font-semibold text-white mr-1">Analítica</h2>
 
-        <select
-          value={periodType}
+        <select value={periodType}
           onChange={e => { setPeriodType(e.target.value as PeriodType); setCycleIdx(0) }}
-          className="bg-slate-700 text-white text-sm rounded-lg px-3 py-1.5 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
-        >
+          className="bg-slate-700 text-white text-sm rounded-lg px-3 py-1.5 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500">
           {PERIOD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
 
-        {/* Payroll cycle sub-selector */}
         {periodType === 'payroll' && cycles.length > 0 && (
           <select value={cycleIdx} onChange={e => setCycleIdx(Number(e.target.value))}
             className="bg-slate-700 text-white text-sm rounded-lg px-3 py-1.5 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500">
@@ -225,7 +176,6 @@ export default function Analytics() {
           </span>
         )}
 
-        {/* Month sub-selector */}
         {periodType === 'month' && (
           <select value={monthOffset} onChange={e => setMonthOffset(Number(e.target.value))}
             className="bg-slate-700 text-white text-sm rounded-lg px-3 py-1.5 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500">
@@ -233,7 +183,6 @@ export default function Analytics() {
           </select>
         )}
 
-        {/* Quarter sub-selector */}
         {periodType === 'quarter' && (
           <select value={quarterOffset} onChange={e => setQuarterOffset(Number(e.target.value))}
             className="bg-slate-700 text-white text-sm rounded-lg px-3 py-1.5 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500">
@@ -241,7 +190,6 @@ export default function Analytics() {
           </select>
         )}
 
-        {/* Year sub-selector */}
         {periodType === 'year' && (
           <select value={yearOffset} onChange={e => setYearOffset(Number(e.target.value))}
             className="bg-slate-700 text-white text-sm rounded-lg px-3 py-1.5 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500">
@@ -249,7 +197,6 @@ export default function Analytics() {
           </select>
         )}
 
-        {/* Custom date range */}
         {periodType === 'custom' && (
           <div className="flex items-center gap-2">
             <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
@@ -287,20 +234,20 @@ export default function Analytics() {
             ))}
           </div>
 
-          {/* Metric cards — clickable */}
+          {/* Metric cards */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             {metrics.map(({ label, value, color, categoryType }) => (
-              <button
-                key={label}
+              <button key={label}
                 onClick={() => goToTransactions(categoryType)}
-                disabled={!categoryType}
+                disabled={!categoryType || !period}
                 className={clsx(
                   'bg-slate-800 rounded-xl p-4 text-left transition-colors',
                   categoryType ? 'hover:bg-slate-700 cursor-pointer' : 'cursor-default'
-                )}
-              >
+                )}>
                 <div className="text-xs text-slate-400 uppercase tracking-wide">{label}</div>
-                <div className={`text-xl font-bold mt-1 ${color}`}>{fmt(value)}</div>
+                <div className={`text-xl font-bold mt-1 ${color}`}>
+                  {isLoading ? <span className="text-slate-600">—</span> : fmt(value)}
+                </div>
                 {categoryType && <div className="text-xs text-slate-600 mt-1">Ver transacciones →</div>}
               </button>
             ))}
@@ -310,7 +257,9 @@ export default function Analytics() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <div className="bg-slate-800 rounded-xl p-5">
               <h3 className="text-sm font-medium text-slate-300 mb-4">Ingresos y gastos diarios</h3>
-              {barData.length > 0 ? (
+              {isLoading ? (
+                <div className="flex items-center justify-center h-48 text-slate-500 text-sm">Cargando...</div>
+              ) : barData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={barData} barSize={barData.length > 25 ? 4 : 7} barGap={1}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
@@ -321,8 +270,8 @@ export default function Analytics() {
                       contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: 12 }}
                       labelFormatter={fmtDate} formatter={(v: number) => fmt(v)} />
                     <Legend />
-                    <Bar dataKey="Ingresos" fill="#22c55e" />
-                    <Bar dataKey="Gastos" fill="#ef4444" />
+                    <Bar dataKey="income" name="Ingresos" fill="#22c55e" />
+                    <Bar dataKey="expenses" name="Gastos" fill="#ef4444" />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -332,10 +281,12 @@ export default function Analytics() {
 
             <div className="bg-slate-800 rounded-xl p-5">
               <h3 className="text-sm font-medium text-slate-300 mb-4">Gastos por categoría</h3>
-              {pieData.length > 0 ? (
+              {isLoading ? (
+                <div className="flex items-center justify-center h-48 text-slate-500 text-sm">Cargando...</div>
+              ) : pieData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={280}>
                   <PieChart>
-                    <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%"
+                    <Pie data={pieData} dataKey="total" nameKey="name" cx="50%" cy="50%"
                       outerRadius={90}
                       label={({ percent }) => percent > 0.04 ? `${(percent * 100).toFixed(0)}%` : ''}
                       labelLine={false}>
@@ -344,7 +295,7 @@ export default function Analytics() {
                     <Tooltip
                       contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: 12 }}
                       formatter={(v: number) => fmt(v)} />
-                    <Legend formatter={(value) => <span style={{ color: '#94a3b8', fontSize: 12 }}>{value}</span>} />
+                    <Legend formatter={v => <span style={{ color: '#94a3b8', fontSize: 12 }}>{v}</span>} />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (

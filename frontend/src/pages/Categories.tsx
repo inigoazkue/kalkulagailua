@@ -152,11 +152,9 @@ function CategoryCard({ cat }: { cat: Category }) {
           <button onClick={() => setEditing(true)} className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-700 transition-colors">
             <Pencil size={14} />
           </button>
-          {!cat.is_default && (
-            <button onClick={() => setConfirmDelete(true)} className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-slate-700 transition-colors">
-              <Trash2 size={14} />
-            </button>
-          )}
+          <button onClick={() => setConfirmDelete(true)} className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-slate-700 transition-colors">
+            <Trash2 size={14} />
+          </button>
         </div>
       </div>
 

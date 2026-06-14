@@ -169,6 +169,17 @@ export const createInvestmentTransaction = (data: {
 export const fetchPayrollDates = () =>
   api.get<{ dates: string[] }>('/transactions/payroll-dates').then(r => r.data)
 
+export interface AnalyticsDay { date: string; income: number; expenses: number }
+export interface AnalyticsCategory { name: string; color: string; category_type: string; total: number }
+export interface AnalyticsData {
+  daily: AnalyticsDay[]
+  categories: AnalyticsCategory[]
+  summary: { income: number; fixed_expenses: number; variable_expenses: number; investment: number; net: number }
+}
+
+export const fetchAnalyticsData = (params: { start?: string; end?: string; account_id?: number }) =>
+  api.get<AnalyticsData>('/transactions/analytics-data', { params }).then(r => r.data)
+
 export const importFile = (accountId: number, file: File) => {
   const form = new FormData()
   form.append('file', file)

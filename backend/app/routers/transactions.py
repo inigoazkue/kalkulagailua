@@ -30,6 +30,83 @@ async def get_payroll_dates(db: AsyncSession = Depends(get_db)):
     return {"dates": [d.isoformat() for d in rows]}
 
 
+@router.get("/transactions/analytics-data")
+async def get_analytics_data(
+    start: Optional[date] = None,
+    end: Optional[date] = None,
+    account_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+):
+    filters = []
+    if start:
+        filters.append(Transaction.date >= start)
+    if end:
+        filters.append(Transaction.date <= end)
+    if account_id:
+        filters.append(Transaction.account_id == account_id)
+
+    # Daily income / expenses using GREATEST to split positive/negative
+    daily_q = (
+        select(
+            Transaction.date,
+            func.sum(func.greatest(Transaction.amount, Decimal("0"))).label("income"),
+            func.sum(func.greatest(-Transaction.amount, Decimal("0"))).label("expenses"),
+        )
+        .where(and_(*filters))
+        .group_by(Transaction.date)
+        .order_by(Transaction.date)
+    )
+    daily_rows = (await db.execute(daily_q)).all()
+    daily = [{"date": str(r.date), "income": float(r.income), "expenses": float(r.expenses)} for r in daily_rows]
+
+    # Categorized expenses grouped by category
+    cat_q = (
+        select(
+            Category.name,
+            Category.color,
+            Category.category_type,
+            func.sum(func.abs(Transaction.amount)).label("total"),
+        )
+        .join(TransactionCategory, Transaction.id == TransactionCategory.transaction_id)
+        .join(Category, TransactionCategory.category_id == Category.id)
+        .where(and_(*filters, Transaction.amount < 0))
+        .group_by(Category.id, Category.name, Category.color, Category.category_type)
+        .order_by(func.sum(func.abs(Transaction.amount)).desc())
+    )
+    cat_rows = (await db.execute(cat_q)).all()
+    categories = [
+        {"name": r.name, "color": r.color, "category_type": r.category_type.value, "total": float(r.total)}
+        for r in cat_rows
+    ]
+
+    # Uncategorized expenses
+    uncat_q = (
+        select(func.sum(func.abs(Transaction.amount)).label("total"))
+        .outerjoin(TransactionCategory, Transaction.id == TransactionCategory.transaction_id)
+        .where(and_(*filters, Transaction.amount < 0, TransactionCategory.id == None))
+    )
+    uncat_total = float((await db.execute(uncat_q)).scalar() or 0)
+    if uncat_total > 0:
+        categories.append({"name": "Sin categoría", "color": "#6b7280", "category_type": "variable_expense", "total": uncat_total})
+
+    income = sum(d["income"] for d in daily)
+    fixed_exp = sum(c["total"] for c in categories if c["category_type"] == "fixed_expense")
+    var_exp = sum(c["total"] for c in categories if c["category_type"] == "variable_expense")
+    invest = sum(c["total"] for c in categories if c["category_type"] == "investment")
+
+    return {
+        "daily": daily,
+        "categories": categories,
+        "summary": {
+            "income": income,
+            "fixed_expenses": fixed_exp,
+            "variable_expenses": var_exp,
+            "investment": invest,
+            "net": income - fixed_exp - var_exp - invest,
+        },
+    }
+
+
 @router.get("/transactions", response_model=TransactionListOut)
 async def list_transactions(
     start: Optional[date] = None,
