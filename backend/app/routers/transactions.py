@@ -36,8 +36,9 @@ async def list_transactions(
     end: Optional[date] = None,
     category_id: Optional[int] = None,
     account_id: Optional[int] = None,
+    category_type: Optional[str] = None,
     page: int = Query(1, ge=1),
-    limit: int = Query(50, ge=1, le=500),
+    limit: int = Query(50, ge=1, le=2000),
     db: AsyncSession = Depends(get_db),
 ):
     filters = []
@@ -63,6 +64,15 @@ async def list_transactions(
             Transaction.id == TransactionCategory.transaction_id,
             isouter=True,
         ).where(TransactionCategory.category_id == category_id)
+    elif category_type is not None:
+        try:
+            ct = CategoryTypeEnum(category_type)
+            query = (query
+                .join(TransactionCategory, Transaction.id == TransactionCategory.transaction_id)
+                .join(Category, TransactionCategory.category_id == Category.id)
+                .where(Category.category_type == ct))
+        except ValueError:
+            pass
 
     count_q = select(func.count()).select_from(query.subquery())
     total_result = await db.execute(count_q)

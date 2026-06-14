@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
@@ -11,7 +12,7 @@ type PeriodType = 'payroll' | 'month' | 'quarter' | 'year' | 'custom'
 
 const PERIOD_OPTIONS: { value: PeriodType; label: string }[] = [
   { value: 'payroll', label: 'Nómina a nómina' },
-  { value: 'month', label: 'Mes natural' },
+  { value: 'month', label: 'Mes' },
   { value: 'quarter', label: 'Trimestre' },
   { value: 'year', label: 'Año' },
   { value: 'custom', label: 'Entre fechas' },
@@ -26,14 +27,12 @@ function buildPayrollCycles(dates: string[]) {
   const sorted = [...dates].sort()
   const today = new Date().toISOString().slice(0, 10)
   const cycles: { label: string; start: string; end: string }[] = []
-
   const last = new Date(sorted[sorted.length - 1] + 'T00:00:00')
   cycles.push({
     label: `${last.toLocaleString('es', { month: 'long', year: 'numeric' })} (en curso)`,
     start: sorted[sorted.length - 1],
     end: today,
   })
-
   for (let i = sorted.length - 1; i > 0; i--) {
     const s = new Date(sorted[i - 1] + 'T00:00:00')
     const e = new Date(sorted[i] + 'T00:00:00')
@@ -46,29 +45,64 @@ function buildPayrollCycles(dates: string[]) {
   return cycles
 }
 
+function buildMonthOptions(now: Date) {
+  return Array.from({ length: 24 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    return { value: i, label: d.toLocaleString('es', { month: 'long', year: 'numeric' }) }
+  })
+}
+
+function buildQuarterOptions(now: Date) {
+  const curQ = Math.floor(now.getMonth() / 3)
+  return Array.from({ length: 8 }, (_, i) => {
+    const total = now.getFullYear() * 4 + curQ - i
+    const y = Math.floor(total / 4)
+    const q = total % 4
+    return { value: i, label: `Q${q + 1} ${y}` }
+  })
+}
+
+function buildYearOptions(now: Date) {
+  return Array.from({ length: 5 }, (_, i) => ({
+    value: i,
+    label: String(now.getFullYear() - i),
+  }))
+}
+
 function computePeriod(
   type: PeriodType,
   cycles: { start: string; end: string }[],
   cycleIdx: number,
+  monthOffset: number,
+  quarterOffset: number,
+  yearOffset: number,
   customStart: string,
   customEnd: string,
 ): { start: string; end: string } | null {
-  const today = new Date().toISOString().slice(0, 10)
   const now = new Date()
   switch (type) {
     case 'payroll':
       return cycles[cycleIdx] ?? null
     case 'month': {
-      const y = now.getFullYear(), m = now.getMonth()
+      const d = new Date(now.getFullYear(), now.getMonth() - monthOffset, 1)
+      const y = d.getFullYear(), m = d.getMonth()
       const last = new Date(y, m + 1, 0).getDate()
       return { start: `${y}-${pad(m + 1)}-01`, end: `${y}-${pad(m + 1)}-${pad(last)}` }
     }
     case 'quarter': {
-      const qm = Math.floor(now.getMonth() / 3) * 3
-      return { start: `${now.getFullYear()}-${pad(qm + 1)}-01`, end: today }
+      const curQ = Math.floor(now.getMonth() / 3)
+      const total = now.getFullYear() * 4 + curQ - quarterOffset
+      const y = Math.floor(total / 4)
+      const q = total % 4
+      const sm = q * 3
+      const em = sm + 2
+      const lastDay = new Date(y, em + 1, 0).getDate()
+      return { start: `${y}-${pad(sm + 1)}-01`, end: `${y}-${pad(em + 1)}-${pad(lastDay)}` }
     }
-    case 'year':
-      return { start: `${now.getFullYear()}-01-01`, end: today }
+    case 'year': {
+      const y = now.getFullYear() - yearOffset
+      return { start: `${y}-01-01`, end: `${y}-12-31` }
+    }
     case 'custom':
       return customStart && customEnd ? { start: customStart, end: customEnd } : null
   }
@@ -106,9 +140,15 @@ function aggregateChartData(items: Transaction[]) {
 }
 
 export default function Analytics() {
+  const now = useMemo(() => new Date(), [])
+  const navigate = useNavigate()
+
   const [accountIdx, setAccountIdx] = useState(0)
   const [periodType, setPeriodType] = useState<PeriodType>('payroll')
   const [cycleIdx, setCycleIdx] = useState(0)
+  const [monthOffset, setMonthOffset] = useState(0)
+  const [quarterOffset, setQuarterOffset] = useState(0)
+  const [yearOffset, setYearOffset] = useState(0)
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
 
@@ -116,10 +156,15 @@ export default function Analytics() {
   const { data: payrollData } = useQuery({ queryKey: ['payroll-dates'], queryFn: fetchPayrollDates })
 
   const cycles = useMemo(() => buildPayrollCycles(payrollData?.dates ?? []), [payrollData])
-  const effectiveType = periodType === 'payroll' && !cycles.length ? 'month' : periodType
+  const monthOptions = useMemo(() => buildMonthOptions(now), [now])
+  const quarterOptions = useMemo(() => buildQuarterOptions(now), [now])
+  const yearOptions = useMemo(() => buildYearOptions(now), [now])
+
+  const effectiveType: PeriodType = periodType === 'payroll' && !cycles.length ? 'month' : periodType
+
   const period = useMemo(
-    () => computePeriod(effectiveType, cycles, cycleIdx, customStart, customEnd),
-    [effectiveType, cycles, cycleIdx, customStart, customEnd]
+    () => computePeriod(effectiveType, cycles, cycleIdx, monthOffset, quarterOffset, yearOffset, customStart, customEnd),
+    [effectiveType, cycles, cycleIdx, monthOffset, quarterOffset, yearOffset, customStart, customEnd]
   )
 
   const account = accounts[accountIdx] ?? null
@@ -137,11 +182,27 @@ export default function Analytics() {
 
   const barInterval = barData.length > 20 ? Math.floor(barData.length / 10) : 0
 
+  function goToTransactions(categoryType?: string) {
+    if (!period) return
+    const p = new URLSearchParams({ start: period.start, end: period.end })
+    if (account) p.set('account_id', String(account.id))
+    if (categoryType) p.set('category_type', categoryType)
+    navigate(`/transactions?${p.toString()}`)
+  }
+
+  const metrics = [
+    { label: 'Ingresos', value: summary.income, color: 'text-green-400', categoryType: 'income' },
+    { label: 'Gastos fijos', value: summary.fixedExp, color: 'text-red-400', categoryType: 'fixed_expense' },
+    { label: 'Gastos variables', value: summary.varExp, color: 'text-orange-400', categoryType: 'variable_expense' },
+    { label: 'Inversión', value: summary.invest, color: 'text-purple-400', categoryType: 'investment' },
+    { label: 'Neto', value: summary.net, color: summary.net >= 0 ? 'text-blue-400' : 'text-red-400', categoryType: undefined },
+  ]
+
   return (
     <div className="space-y-5">
-      {/* Header + period selector */}
-      <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-xl font-semibold text-white">Analítica</h2>
+      {/* Period selector row */}
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-xl font-semibold text-white mr-1">Analítica</h2>
 
         <select
           value={periodType}
@@ -151,22 +212,44 @@ export default function Analytics() {
           {PERIOD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
 
+        {/* Payroll cycle sub-selector */}
         {periodType === 'payroll' && cycles.length > 0 && (
-          <select
-            value={cycleIdx}
-            onChange={e => setCycleIdx(Number(e.target.value))}
-            className="bg-slate-700 text-white text-sm rounded-lg px-3 py-1.5 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          >
+          <select value={cycleIdx} onChange={e => setCycleIdx(Number(e.target.value))}
+            className="bg-slate-700 text-white text-sm rounded-lg px-3 py-1.5 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500">
             {cycles.map((c, i) => <option key={i} value={i}>{c.label}</option>)}
           </select>
         )}
-
         {periodType === 'payroll' && !cycles.length && (
           <span className="text-xs text-amber-400 bg-amber-400/10 px-2 py-1 rounded-lg">
             Marca una cuenta como "Cuenta nómina" en Ajustes → Cuentas
           </span>
         )}
 
+        {/* Month sub-selector */}
+        {periodType === 'month' && (
+          <select value={monthOffset} onChange={e => setMonthOffset(Number(e.target.value))}
+            className="bg-slate-700 text-white text-sm rounded-lg px-3 py-1.5 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500">
+            {monthOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        )}
+
+        {/* Quarter sub-selector */}
+        {periodType === 'quarter' && (
+          <select value={quarterOffset} onChange={e => setQuarterOffset(Number(e.target.value))}
+            className="bg-slate-700 text-white text-sm rounded-lg px-3 py-1.5 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500">
+            {quarterOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        )}
+
+        {/* Year sub-selector */}
+        {periodType === 'year' && (
+          <select value={yearOffset} onChange={e => setYearOffset(Number(e.target.value))}
+            className="bg-slate-700 text-white text-sm rounded-lg px-3 py-1.5 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500">
+            {yearOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        )}
+
+        {/* Custom date range */}
         {periodType === 'custom' && (
           <div className="flex items-center gap-2">
             <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
@@ -184,44 +267,42 @@ export default function Analytics() {
         )}
       </div>
 
-      {/* Account tabs */}
       {accounts.length === 0 ? (
         <div className="bg-slate-800 rounded-xl p-8 text-center text-slate-400 text-sm">
           No hay cuentas. Crea una en Ajustes → Cuentas.
         </div>
       ) : (
         <>
+          {/* Account tabs */}
           <div className="flex gap-2 flex-wrap">
             {accounts.map((a, i) => (
-              <button
-                key={a.id}
-                onClick={() => setAccountIdx(i)}
+              <button key={a.id} onClick={() => setAccountIdx(i)}
                 className={clsx(
                   'flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-                  accountIdx === i
-                    ? 'bg-slate-600 text-white'
-                    : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
-                )}
-              >
+                  accountIdx === i ? 'bg-slate-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
+                )}>
                 <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: a.color }} />
                 {a.name}
               </button>
             ))}
           </div>
 
-          {/* Summary cards */}
+          {/* Metric cards — clickable */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-            {[
-              { label: 'Ingresos', value: summary.income, color: 'text-green-400' },
-              { label: 'Gastos fijos', value: summary.fixedExp, color: 'text-red-400' },
-              { label: 'Gastos variables', value: summary.varExp, color: 'text-orange-400' },
-              { label: 'Inversión', value: summary.invest, color: 'text-purple-400' },
-              { label: 'Neto', value: summary.net, color: summary.net >= 0 ? 'text-blue-400' : 'text-red-400' },
-            ].map(({ label, value, color }) => (
-              <div key={label} className="bg-slate-800 rounded-xl p-4">
+            {metrics.map(({ label, value, color, categoryType }) => (
+              <button
+                key={label}
+                onClick={() => goToTransactions(categoryType)}
+                disabled={!categoryType}
+                className={clsx(
+                  'bg-slate-800 rounded-xl p-4 text-left transition-colors',
+                  categoryType ? 'hover:bg-slate-700 cursor-pointer' : 'cursor-default'
+                )}
+              >
                 <div className="text-xs text-slate-400 uppercase tracking-wide">{label}</div>
                 <div className={`text-xl font-bold mt-1 ${color}`}>{fmt(value)}</div>
-              </div>
+                {categoryType && <div className="text-xs text-slate-600 mt-1">Ver transacciones →</div>}
+              </button>
             ))}
           </div>
 
@@ -233,18 +314,12 @@ export default function Analytics() {
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={barData} barSize={barData.length > 25 ? 4 : 7} barGap={1}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fill: '#94a3b8', fontSize: 10 }}
-                      tickFormatter={fmtDate}
-                      interval={barInterval}
-                    />
+                    <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 10 }}
+                      tickFormatter={fmtDate} interval={barInterval} />
                     <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={v => `${v}€`} width={60} />
                     <Tooltip
                       contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: 12 }}
-                      labelFormatter={fmtDate}
-                      formatter={(v: number) => fmt(v)}
-                    />
+                      labelFormatter={fmtDate} formatter={(v: number) => fmt(v)} />
                     <Legend />
                     <Bar dataKey="Ingresos" fill="#22c55e" />
                     <Bar dataKey="Gastos" fill="#ef4444" />
@@ -260,25 +335,16 @@ export default function Analytics() {
               {pieData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={280}>
                   <PieChart>
-                    <Pie
-                      data={pieData}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
+                    <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%"
                       outerRadius={90}
                       label={({ percent }) => percent > 0.04 ? `${(percent * 100).toFixed(0)}%` : ''}
-                      labelLine={false}
-                    >
+                      labelLine={false}>
                       {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                     </Pie>
                     <Tooltip
                       contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: 12 }}
-                      formatter={(v: number) => fmt(v)}
-                    />
-                    <Legend
-                      formatter={(value) => <span style={{ color: '#94a3b8', fontSize: 12 }}>{value}</span>}
-                    />
+                      formatter={(v: number) => fmt(v)} />
+                    <Legend formatter={(value) => <span style={{ color: '#94a3b8', fontSize: 12 }}>{value}</span>} />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (

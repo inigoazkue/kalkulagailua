@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import {
   createColumnHelper,
   flexRender,
@@ -8,6 +9,13 @@ import {
 } from '@tanstack/react-table'
 import { fetchTransactions, fetchCategories, fetchAccounts, assignCategory, Transaction } from '../api/client'
 import { clsx } from 'clsx'
+
+const CATEGORY_TYPE_LABELS: Record<string, string> = {
+  income: 'Ingresos',
+  fixed_expense: 'Gastos fijos',
+  variable_expense: 'Gastos variables',
+  investment: 'Inversión',
+}
 
 const col = createColumnHelper<Transaction>()
 
@@ -66,18 +74,20 @@ function CategoryDropdown({ tx }: { tx: Transaction }) {
 }
 
 export default function Transactions() {
+  const [searchParams] = useSearchParams()
   const [page, setPage] = useState(1)
-  const [start, setStart] = useState('')
-  const [end, setEnd] = useState('')
-  const [accountId, setAccountId] = useState<string>('')
+  const [start, setStart] = useState(searchParams.get('start') ?? '')
+  const [end, setEnd] = useState(searchParams.get('end') ?? '')
+  const [accountId, setAccountId] = useState<string>(searchParams.get('account_id') ?? '')
   const [categoryId, setCategoryId] = useState<string>('')
+  const [categoryType, setCategoryType] = useState<string>(searchParams.get('category_type') ?? '')
   const limit = 50
 
   const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: fetchAccounts })
   const { data: categories = [] } = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
 
   const { data, isLoading } = useQuery({
-    queryKey: ['transactions', page, start, end, accountId, categoryId],
+    queryKey: ['transactions', page, start, end, accountId, categoryId, categoryType],
     queryFn: () =>
       fetchTransactions({
         page,
@@ -86,6 +96,7 @@ export default function Transactions() {
         end: end || undefined,
         account_id: accountId ? Number(accountId) : undefined,
         category_id: categoryId ? Number(categoryId) : undefined,
+        category_type: categoryType || undefined,
       }),
   })
 
@@ -163,8 +174,16 @@ export default function Transactions() {
           {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
         </select>
         <select
+          value={categoryType}
+          onChange={e => { setCategoryType(e.target.value); setCategoryId(''); setPage(1) }}
+          className="bg-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        >
+          <option value="">Todos los tipos</option>
+          {Object.entries(CATEGORY_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+        <select
           value={categoryId}
-          onChange={e => { setCategoryId(e.target.value); setPage(1) }}
+          onChange={e => { setCategoryId(e.target.value); setCategoryType(''); setPage(1) }}
           className="bg-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
         >
           <option value="">Todas las categorías</option>
