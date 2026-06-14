@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, or_
 from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models import Transaction, TransactionCategory, Category, CategoryTypeEnum, Account
@@ -14,14 +14,17 @@ from app.schemas import (
 router = APIRouter()
 
 
+_PAYROLL_KEYWORDS = ['%nomina%', '%nómina%', '%salario%', '%sueldo%', '%paga extra%']
+
 @router.get("/transactions/payroll-dates")
 async def get_payroll_dates(db: AsyncSession = Depends(get_db)):
     acc = (await db.execute(select(Account).where(Account.is_payroll_account == True))).scalar_one_or_none()
     if not acc:
         return {"dates": []}
+    keyword_filter = or_(*[Transaction.description.ilike(kw) for kw in _PAYROLL_KEYWORDS])
     rows = (await db.execute(
         select(Transaction.date)
-        .where(Transaction.account_id == acc.id, Transaction.amount > 2000)
+        .where(Transaction.account_id == acc.id, Transaction.amount > 2000, keyword_filter)
         .order_by(Transaction.date)
     )).scalars().all()
     return {"dates": [d.isoformat() for d in rows]}
