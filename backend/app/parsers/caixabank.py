@@ -8,19 +8,46 @@ from app.parsers.base import BaseParser, ParsedTransaction
 
 class CaixaBankParser(BaseParser):
     def parse(self, file_bytes: bytes) -> list[ParsedTransaction]:
-        df = pd.read_excel(io.BytesIO(file_bytes), header=None)
+        for encoding in ("utf-8-sig", "latin-1", "utf-8"):
+            try:
+                for sep in (";", ","):
+                    try:
+                        df = pd.read_csv(io.BytesIO(file_bytes), sep=sep, header=None, encoding=encoding)
+                        if df.shape[1] >= 3:
+                            break
+                    except Exception:
+                        continue
+                else:
+                    continue
+                break
+            except Exception:
+                continue
 
         header_row = None
         for i, row in df.iterrows():
             row_vals = [str(v).strip().lower() for v in row.values]
-            if "fecha" in row_vals and "concepto" in row_vals:
+            if any("fecha" in v for v in row_vals) and any("importe" in v for v in row_vals):
                 header_row = i
                 break
 
         if header_row is None:
-            raise ValueError("Could not find header row with Fecha/Concepto columns")
+            raise ValueError("No se encontró la cabecera con Fecha/Importe")
 
-        df = pd.read_excel(io.BytesIO(file_bytes), header=header_row)
+        for encoding in ("utf-8-sig", "latin-1", "utf-8"):
+            try:
+                for sep in (";", ","):
+                    try:
+                        df = pd.read_csv(io.BytesIO(file_bytes), sep=sep, header=header_row, encoding=encoding)
+                        if df.shape[1] >= 3:
+                            break
+                    except Exception:
+                        continue
+                else:
+                    continue
+                break
+            except Exception:
+                continue
+
         df.columns = [str(c).strip() for c in df.columns]
 
         col_map = {}
@@ -35,10 +62,9 @@ class CaixaBankParser(BaseParser):
             elif "saldo" in lower:
                 col_map["balance"] = col
 
-        required = ["date", "description", "amount"]
-        for r in required:
-            if r not in col_map:
-                raise ValueError(f"Missing required column: {r}")
+        for required in ["date", "description", "amount"]:
+            if required not in col_map:
+                raise ValueError(f"Columna requerida no encontrada: {required}")
 
         results = []
         for _, row in df.iterrows():
@@ -62,24 +88,20 @@ class CaixaBankParser(BaseParser):
                 continue
 
             try:
-                amount_str = str(raw_amount).replace(".", "").replace(",", ".")
+                amount_str = str(raw_amount).strip().replace(".", "").replace(",", ".")
                 amount = Decimal(amount_str)
             except InvalidOperation:
                 continue
 
             balance: Optional[Decimal] = None
-            if "balance" in col_map and not pd.isna(row.get(col_map["balance"])):
-                try:
-                    bal_str = str(row[col_map["balance"]]).replace(".", "").replace(",", ".")
-                    balance = Decimal(bal_str)
-                except InvalidOperation:
-                    pass
+            if "balance" in col_map:
+                raw_bal = row.get(col_map["balance"])
+                if raw_bal is not None and not pd.isna(raw_bal):
+                    try:
+                        balance = Decimal(str(raw_bal).strip().replace(".", "").replace(",", "."))
+                    except InvalidOperation:
+                        pass
 
-            results.append(ParsedTransaction(
-                date=tx_date,
-                description=description,
-                amount=amount,
-                balance=balance,
-            ))
+            results.append(ParsedTransaction(date=tx_date, description=description, amount=amount, balance=balance))
 
         return results

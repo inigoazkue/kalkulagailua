@@ -12,7 +12,7 @@ interface BankConfig {
 }
 
 const banks: BankConfig[] = [
-  { id: 'caixabank', name: 'CaixaBank', accept: '.xlsx', description: 'Excel (.xlsx) — Fecha, Concepto, Importe, Saldo' },
+  { id: 'caixabank', name: 'CaixaBank', accept: '.csv', description: 'CSV — Fecha, Concepto, Importe, Saldo' },
   { id: 'myinvestor', name: 'MyInvestor', accept: '.xlsx', description: 'Excel (.xlsx) — Mis Movimientos' },
   { id: 'trade_republic', name: 'Trade Republic', accept: '.csv', description: 'CSV nativo — Account Statements' },
   { id: 'bit2me', name: 'Bit2me', accept: '.xlsx', description: 'Excel (.xlsx) por año — Histórico de actividad' },
