@@ -138,7 +138,7 @@ export const deleteCategory = (id: number) =>
 export const fetchTransactions = (params: Record<string, string | number | undefined>) =>
   api.get<TransactionList>('/transactions', { params }).then(r => r.data)
 
-export const fetchSummary = (params: { start?: string; end?: string }) =>
+export const fetchSummary = (params: { start?: string; end?: string; account_id?: number }) =>
   api.get<TransactionSummary>('/transactions/summary', { params }).then(r => r.data)
 
 export const assignCategory = (txId: number, categoryId: number) =>

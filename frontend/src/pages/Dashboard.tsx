@@ -3,7 +3,7 @@ import {
   PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, Tooltip,
   CartesianGrid, ResponsiveContainer, Legend,
 } from 'recharts'
-import { fetchSummary, fetchTransactions } from '../api/client'
+import { fetchAccounts, fetchSummary, fetchTransactions, Account } from '../api/client'
 
 function getMonthRange(monthsAgo: number) {
   const now = new Date()
@@ -17,11 +17,41 @@ function getMonthRange(monthsAgo: number) {
 const fmt = (val: string | number) =>
   Number(val).toLocaleString('es', { style: 'currency', currency: 'EUR' })
 
-function SummaryCard({ label, value, color }: { label: string; value: string; color: string }) {
+function AccountSummaryCard({ account, start, end }: { account: Account; start: string; end: string }) {
+  const { data: summary } = useQuery({
+    queryKey: ['summary', start, end, account.id],
+    queryFn: () => fetchSummary({ start, end, account_id: account.id }),
+  })
+
   return (
-    <div className="bg-slate-800 rounded-xl p-5 flex flex-col gap-1">
-      <span className="text-xs text-slate-400 uppercase tracking-wide">{label}</span>
-      <span className={`text-2xl font-bold ${color}`}>{fmt(value)}</span>
+    <div className="bg-slate-800 rounded-xl p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: account.color }} />
+        <span className="font-medium text-white text-sm">{account.name}</span>
+        {account.current_balance !== null && (
+          <span className="ml-auto text-sm font-semibold text-white">{fmt(account.current_balance)}</span>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="bg-slate-700/50 rounded-lg p-2">
+          <div className="text-slate-400">Ingresos</div>
+          <div className="text-green-400 font-semibold mt-0.5">{fmt(summary?.income ?? 0)}</div>
+        </div>
+        <div className="bg-slate-700/50 rounded-lg p-2">
+          <div className="text-slate-400">Gastos fijos</div>
+          <div className="text-red-400 font-semibold mt-0.5">{fmt(summary?.fixed_expenses ?? 0)}</div>
+        </div>
+        <div className="bg-slate-700/50 rounded-lg p-2">
+          <div className="text-slate-400">Gastos variables</div>
+          <div className="text-orange-400 font-semibold mt-0.5">{fmt(summary?.variable_expenses ?? 0)}</div>
+        </div>
+        <div className="bg-slate-700/50 rounded-lg p-2">
+          <div className="text-slate-400">Neto mes</div>
+          <div className={`font-semibold mt-0.5 ${Number(summary?.savings ?? 0) >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
+            {fmt(summary?.savings ?? 0)}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -29,10 +59,12 @@ function SummaryCard({ label, value, color }: { label: string; value: string; co
 export default function Dashboard() {
   const thisMonth = getMonthRange(0)
 
-  const { data: summary } = useQuery({
-    queryKey: ['summary', thisMonth.start, thisMonth.end],
-    queryFn: () => fetchSummary({ start: thisMonth.start, end: thisMonth.end }),
-  })
+  const { data: accounts = [] } = useQuery({ queryKey: ['accounts'], queryFn: fetchAccounts })
+
+  const dashboardAccounts = accounts.filter(a => a.show_on_dashboard)
+  const savingsAccounts = accounts.filter(a => a.include_in_savings && a.current_balance !== null)
+  const totalSavings = savingsAccounts.reduce((s, a) => s + Number(a.current_balance), 0)
+  const hasSavings = savingsAccounts.length > 0
 
   const { data: txList } = useQuery({
     queryKey: ['transactions', thisMonth.start, thisMonth.end, 500],
@@ -41,28 +73,16 @@ export default function Dashboard() {
 
   const monthRanges = Array.from({ length: 6 }, (_, i) => getMonthRange(5 - i))
 
-  const monthQueries = monthRanges.map(r => ({
-    label: r.label,
-    queryKey: ['summary', r.start, r.end] as const,
-    params: { start: r.start, end: r.end },
-  }))
-
-  const { data: m0 } = useQuery({ queryKey: monthQueries[0].queryKey, queryFn: () => fetchSummary(monthQueries[0].params) })
-  const { data: m1 } = useQuery({ queryKey: monthQueries[1].queryKey, queryFn: () => fetchSummary(monthQueries[1].params) })
-  const { data: m2 } = useQuery({ queryKey: monthQueries[2].queryKey, queryFn: () => fetchSummary(monthQueries[2].params) })
-  const { data: m3 } = useQuery({ queryKey: monthQueries[3].queryKey, queryFn: () => fetchSummary(monthQueries[3].params) })
-  const { data: m4 } = useQuery({ queryKey: monthQueries[4].queryKey, queryFn: () => fetchSummary(monthQueries[4].params) })
-  const { data: m5 } = useQuery({ queryKey: monthQueries[5].queryKey, queryFn: () => fetchSummary(monthQueries[5].params) })
-
-  const monthlySummaries = [m0, m1, m2, m3, m4, m5]
+  const { data: m0 } = useQuery({ queryKey: ['summary', monthRanges[0].start, monthRanges[0].end], queryFn: () => fetchSummary({ start: monthRanges[0].start, end: monthRanges[0].end }) })
+  const { data: m1 } = useQuery({ queryKey: ['summary', monthRanges[1].start, monthRanges[1].end], queryFn: () => fetchSummary({ start: monthRanges[1].start, end: monthRanges[1].end }) })
+  const { data: m2 } = useQuery({ queryKey: ['summary', monthRanges[2].start, monthRanges[2].end], queryFn: () => fetchSummary({ start: monthRanges[2].start, end: monthRanges[2].end }) })
+  const { data: m3 } = useQuery({ queryKey: ['summary', monthRanges[3].start, monthRanges[3].end], queryFn: () => fetchSummary({ start: monthRanges[3].start, end: monthRanges[3].end }) })
+  const { data: m4 } = useQuery({ queryKey: ['summary', monthRanges[4].start, monthRanges[4].end], queryFn: () => fetchSummary({ start: monthRanges[4].start, end: monthRanges[4].end }) })
+  const { data: m5 } = useQuery({ queryKey: ['summary', monthRanges[5].start, monthRanges[5].end], queryFn: () => fetchSummary({ start: monthRanges[5].start, end: monthRanges[5].end }) })
 
   const trendData = monthRanges.map((r, i) => {
-    const s = monthlySummaries[i]
-    return {
-      name: r.label,
-      Ahorro: s ? Number(s.savings) : 0,
-      Ingresos: s ? Number(s.income) : 0,
-    }
+    const s = [m0, m1, m2, m3, m4, m5][i]
+    return { name: r.label, Ahorro: s ? Number(s.savings) : 0, Ingresos: s ? Number(s.income) : 0 }
   })
 
   const categorySpend: Record<string, { name: string; color: string; value: number }> = {}
@@ -72,9 +92,7 @@ export default function Dashboard() {
       const cat = tx.category_assignment.category
       if (cat.category_type === 'income') continue
       const amount = Math.abs(Number(tx.amount))
-      if (!categorySpend[cat.id]) {
-        categorySpend[cat.id] = { name: cat.name, color: cat.color, value: 0 }
-      }
+      if (!categorySpend[cat.id]) categorySpend[cat.id] = { name: cat.name, color: cat.color, value: 0 }
       categorySpend[cat.id].value += amount
     }
   }
@@ -82,14 +100,27 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-white">Dashboard — {thisMonth.label}</h2>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <SummaryCard label="Ingresos" value={summary?.income ?? '0'} color="text-green-400" />
-        <SummaryCard label="Gastos Fijos" value={summary?.fixed_expenses ?? '0'} color="text-red-400" />
-        <SummaryCard label="Gastos Variables" value={summary?.variable_expenses ?? '0'} color="text-orange-400" />
-        <SummaryCard label="Ahorro" value={summary?.savings ?? '0'} color="text-blue-400" />
+      <div className="flex items-end justify-between">
+        <h2 className="text-xl font-semibold text-white">Dashboard — {thisMonth.label}</h2>
+        {hasSavings && (
+          <div className="text-right">
+            <div className="text-xs text-slate-400">Ahorro total</div>
+            <div className="text-2xl font-bold text-green-400">{fmt(totalSavings)}</div>
+          </div>
+        )}
       </div>
+
+      {dashboardAccounts.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {dashboardAccounts.map(a => (
+            <AccountSummaryCard key={a.id} account={a} start={thisMonth.start} end={thisMonth.end} />
+          ))}
+        </div>
+      ) : (
+        <div className="bg-slate-800 rounded-xl p-8 text-center text-slate-400 text-sm">
+          Activa "Mostrar en dashboard" en alguna cuenta para ver sus métricas aquí.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-slate-800 rounded-xl p-5">
@@ -115,14 +146,12 @@ export default function Dashboard() {
               </PieChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-48 text-slate-500 text-sm">
-              Sin datos este mes
-            </div>
+            <div className="flex items-center justify-center h-48 text-slate-500 text-sm">Sin datos este mes</div>
           )}
         </div>
 
         <div className="bg-slate-800 rounded-xl p-5">
-          <h3 className="text-sm font-medium text-slate-300 mb-4">Tendencia de ahorro (6 meses)</h3>
+          <h3 className="text-sm font-medium text-slate-300 mb-4">Tendencia (6 meses)</h3>
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={trendData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />

@@ -63,6 +63,7 @@ async def list_transactions(
 async def get_summary(
     start: Optional[date] = None,
     end: Optional[date] = None,
+    account_id: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
 ):
     filters = []
@@ -70,6 +71,8 @@ async def get_summary(
         filters.append(Transaction.date >= start)
     if end:
         filters.append(Transaction.date <= end)
+    if account_id:
+        filters.append(Transaction.account_id == account_id)
 
     result = await db.execute(
         select(Transaction)
