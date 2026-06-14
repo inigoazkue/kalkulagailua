@@ -47,11 +47,20 @@ class CategoryUpdate(BaseModel):
     keywords: Optional[list[str]] = None
 
 
+class CategorySlimOut(BaseModel):
+    id: int
+    name: str
+    category_type: CategoryTypeEnum
+    color: str
+
+    model_config = {"from_attributes": True}
+
+
 class TransactionCategoryOut(BaseModel):
     id: int
     category_id: int
     is_manual: bool
-    category: CategoryOut
+    category: CategorySlimOut
 
     model_config = {"from_attributes": True}
 
