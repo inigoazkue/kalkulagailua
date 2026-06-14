@@ -22,7 +22,6 @@ const BANK_ACCEPT: Record<BankId, string> = {
 const SUBTYPE_LABELS: Record<AccountSubtype, string> = {
   daily: 'Corriente',
   savings: 'Ahorro',
-  investment: 'Inversión',
   crypto: 'Crypto',
 }
 
