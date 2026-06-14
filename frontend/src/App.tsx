@@ -6,6 +6,8 @@ import Accounts from './pages/Accounts'
 import Transactions from './pages/Transactions'
 import Import from './pages/Import'
 import Investments from './pages/Investments'
+import Analytics from './pages/Analytics'
+import Categories from './pages/Categories'
 import Login from './pages/Login'
 import api from './api/client'
 
@@ -41,10 +43,12 @@ export default function App() {
         <Route path="/" element={<Layout onLogout={handleLogout} />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
+          <Route path="analytics" element={<Analytics />} />
           <Route path="accounts" element={<Accounts />} />
           <Route path="transactions" element={<Transactions />} />
           <Route path="import" element={<Import />} />
           <Route path="investments" element={<Investments />} />
+          <Route path="categories" element={<Categories />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -14,6 +14,7 @@ class AccountOut(BaseModel):
     color: str
     include_in_savings: bool
     show_on_dashboard: bool
+    is_payroll_account: bool
     current_balance: Optional[Decimal]
     balance_date: Optional[date]
     created_at: datetime
@@ -29,6 +30,7 @@ class AccountCreate(BaseModel):
     color: str = "#3b82f6"
     include_in_savings: bool = False
     show_on_dashboard: bool = True
+    is_payroll_account: bool = False
 
 
 class AccountUpdate(BaseModel):
@@ -38,6 +40,7 @@ class AccountUpdate(BaseModel):
     color: Optional[str] = None
     include_in_savings: Optional[bool] = None
     show_on_dashboard: Optional[bool] = None
+    is_payroll_account: Optional[bool] = None
 
 
 class CategoryKeywordOut(BaseModel):

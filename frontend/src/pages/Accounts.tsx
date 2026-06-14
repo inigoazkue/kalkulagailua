@@ -33,7 +33,7 @@ type FormData = AccountCreate & { id?: number }
 
 const emptyForm = (): FormData => ({
   name: '', bank: 'caixabank', subtype: 'daily',
-  iban: '', color: '#3b82f6', include_in_savings: false, show_on_dashboard: true,
+  iban: '', color: '#3b82f6', include_in_savings: false, show_on_dashboard: true, is_payroll_account: false,
 })
 
 function AccountModal({ initial, onClose }: { initial: FormData; onClose: () => void }) {
@@ -112,6 +112,11 @@ function AccountModal({ initial, onClose }: { initial: FormData; onClose: () => 
                 className="w-4 h-4 rounded accent-blue-500" />
               <span className="text-sm text-slate-300">Mostrar en dashboard</span>
             </label>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input type="checkbox" checked={(form as any).is_payroll_account ?? false} onChange={e => set('is_payroll_account', e.target.checked)}
+                className="w-4 h-4 rounded accent-blue-500" />
+              <span className="text-sm text-slate-300">Cuenta nómina</span>
+            </label>
           </div>
         </div>
 
@@ -177,7 +182,7 @@ function AccountCard({ account }: { account: Account }) {
 
       {editing && (
         <AccountModal
-          initial={{ id: account.id, name: account.name, bank: account.bank, subtype: account.subtype, iban: account.iban ?? '', color: account.color, include_in_savings: account.include_in_savings, show_on_dashboard: account.show_on_dashboard }}
+          initial={{ id: account.id, name: account.name, bank: account.bank, subtype: account.subtype, iban: account.iban ?? '', color: account.color, include_in_savings: account.include_in_savings, show_on_dashboard: account.show_on_dashboard, is_payroll_account: account.is_payroll_account }}
           onClose={() => setEditing(false)}
         />
       )}

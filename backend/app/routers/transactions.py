@@ -6,12 +6,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from sqlalchemy.orm import selectinload
 from app.database import get_db
-from app.models import Transaction, TransactionCategory, Category, CategoryTypeEnum
+from app.models import Transaction, TransactionCategory, Category, CategoryTypeEnum, Account
 from app.schemas import (
     TransactionOut, TransactionListOut, TransactionSummaryOut, AssignCategoryIn
 )
 
 router = APIRouter()
+
+
+@router.get("/transactions/payroll-dates")
+async def get_payroll_dates(db: AsyncSession = Depends(get_db)):
+    acc = (await db.execute(select(Account).where(Account.is_payroll_account == True))).scalar_one_or_none()
+    if not acc:
+        return {"dates": []}
+    rows = (await db.execute(
+        select(Transaction.date)
+        .where(Transaction.account_id == acc.id, Transaction.amount > 2000)
+        .order_by(Transaction.date)
+    )).scalars().all()
+    return {"dates": [d.isoformat() for d in rows]}
 
 
 @router.get("/transactions", response_model=TransactionListOut)

@@ -19,6 +19,7 @@ export interface Account {
   color: string
   include_in_savings: boolean
   show_on_dashboard: boolean
+  is_payroll_account: boolean
   current_balance: string | null
   balance_date: string | null
   created_at: string
@@ -32,6 +33,7 @@ export interface AccountCreate {
   color?: string
   include_in_savings?: boolean
   show_on_dashboard?: boolean
+  is_payroll_account?: boolean
 }
 
 export interface AccountUpdate {
@@ -41,6 +43,7 @@ export interface AccountUpdate {
   color?: string
   include_in_savings?: boolean
   show_on_dashboard?: boolean
+  is_payroll_account?: boolean
 }
 
 export interface CategoryKeyword {
@@ -162,6 +165,9 @@ export const createInvestmentTransaction = (data: {
   fees: number
   transaction_type: string
 }) => api.post('/investments/transactions', data).then(r => r.data)
+
+export const fetchPayrollDates = () =>
+  api.get<{ dates: string[] }>('/transactions/payroll-dates').then(r => r.data)
 
 export const importFile = (accountId: number, file: File) => {
   const form = new FormData()

@@ -54,6 +54,7 @@ class Account(Base):
     color: Mapped[str] = mapped_column(String(7), nullable=False, default="#3b82f6")
     include_in_savings: Mapped[bool] = mapped_column(Boolean, default=False)
     show_on_dashboard: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_payroll_account: Mapped[bool] = mapped_column(Boolean, default=False)
     current_balance: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
     balance_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
