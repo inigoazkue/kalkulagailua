@@ -1,7 +1,7 @@
-import { useRef, useState, DragEvent } from 'react'
+import { useRef, useState, DragEvent, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchAccounts, importFile, ImportResult, Account, BankId, AccountSubtype } from '../api/client'
-import { Upload, CheckCircle, XCircle, Wallet } from 'lucide-react'
+import { fetchAccounts, importFile, updateAccountBalance, ImportResult, Account, BankId, AccountSubtype } from '../api/client'
+import { Upload, CheckCircle, XCircle, Wallet, Pencil, Save } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Link } from 'react-router-dom'
 
@@ -24,39 +24,137 @@ const SUBTYPE_LABELS: Record<AccountSubtype, string> = {
   savings: 'Ahorro',
 }
 
-interface UploadState {
-  status: 'idle' | 'loading' | 'success' | 'error'
-  result?: ImportResult
-  error?: string
-  dragging?: boolean
+const fmtBalance = (val: string | number | null) =>
+  val == null ? null : Number(val).toLocaleString('es', { style: 'currency', currency: 'EUR' })
+
+function BalanceSection({ account, highlightEmpty }: { account: Account; highlightEmpty?: boolean }) {
+  const [editing, setEditing] = useState(highlightEmpty && account.current_balance === null)
+  const [balanceVal, setBalanceVal] = useState(account.current_balance != null ? String(account.current_balance) : '')
+  const [dateVal, setDateVal] = useState(account.balance_date ?? '')
+  const qc = useQueryClient()
+
+  // If parent signals we should open the form (e.g. after import without balance)
+  useEffect(() => {
+    if (highlightEmpty && account.current_balance === null) setEditing(true)
+  }, [highlightEmpty, account.current_balance])
+
+  const mutation = useMutation({
+    mutationFn: () => updateAccountBalance(account.id, {
+      balance: Number(balanceVal.replace(',', '.')),
+      balance_date: dateVal,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['accounts'] })
+      setEditing(false)
+    },
+  })
+
+  const hasBalance = account.current_balance !== null
+
+  return (
+    <div className={clsx(
+      'rounded-lg px-3 py-2',
+      !hasBalance && highlightEmpty
+        ? 'bg-amber-500/10 border border-amber-500/30'
+        : 'bg-slate-700/50'
+    )}>
+      {!editing ? (
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <span className="text-xs text-slate-400">Saldo disponible</span>
+            {hasBalance ? (
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-sm font-semibold text-white">{fmtBalance(account.current_balance)}</span>
+                {account.balance_date && (
+                  <span className="text-xs text-slate-500">
+                    {new Date(account.balance_date + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="text-xs text-amber-400 mt-0.5">Sin saldo registrado — introdúcelo para el cálculo de ahorro</div>
+            )}
+          </div>
+          <button onClick={() => {
+            setBalanceVal(account.current_balance != null ? String(account.current_balance) : '')
+            setDateVal(account.balance_date ?? '')
+            setEditing(true)
+          }} className="p-1 text-slate-400 hover:text-white rounded transition-colors shrink-0">
+            <Pencil size={13} />
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <span className="text-xs text-slate-400">Saldo disponible</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <input
+              type="number"
+              step="0.01"
+              value={balanceVal}
+              onChange={e => setBalanceVal(e.target.value)}
+              placeholder="1234.56"
+              className="w-32 bg-slate-600 text-white text-sm rounded px-2 py-1 border border-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <input
+              type="date"
+              value={dateVal}
+              onChange={e => setDateVal(e.target.value)}
+              className="bg-slate-600 text-white text-sm rounded px-2 py-1 border border-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <button
+              onClick={() => mutation.mutate()}
+              disabled={!balanceVal || !dateVal || mutation.isPending}
+              className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded transition-colors"
+            >
+              <Save size={12} /> Guardar
+            </button>
+            {hasBalance && (
+              <button onClick={() => setEditing(false)} className="text-xs text-slate-400 hover:text-white">
+                Cancelar
+              </button>
+            )}
+          </div>
+          {mutation.isError && <p className="text-xs text-red-400">Error al guardar</p>}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function AccountUploadBox({ account }: { account: Account }) {
-  const [state, setState] = useState<UploadState>({ status: 'idle' })
+  const [uploadState, setUploadState] = useState<{
+    status: 'idle' | 'loading' | 'success' | 'error'
+    result?: ImportResult
+    error?: string
+    dragging?: boolean
+  }>({ status: 'idle' })
+  const [needsBalance, setNeedsBalance] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const qc = useQueryClient()
 
   const mutation = useMutation({
     mutationFn: (file: File) => importFile(account.id, file),
     onSuccess: result => {
-      setState({ status: 'success', result })
+      setUploadState({ status: 'success', result })
       qc.invalidateQueries({ queryKey: ['transactions'] })
       qc.invalidateQueries({ queryKey: ['accounts'] })
+      if (!result.balance_updated) setNeedsBalance(true)
     },
     onError: (err: unknown) => {
       const msg = err instanceof Error ? err.message : 'Error desconocido'
-      setState({ status: 'error', error: msg })
+      setUploadState({ status: 'error', error: msg })
     },
   })
 
   const handleFile = (file: File) => {
-    setState({ status: 'loading' })
+    setNeedsBalance(false)
+    setUploadState({ status: 'loading' })
     mutation.mutate(file)
   }
 
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault()
-    setState(s => ({ ...s, dragging: false }))
+    setUploadState(s => ({ ...s, dragging: false }))
     const file = e.dataTransfer.files[0]
     if (file) handleFile(file)
   }
@@ -73,19 +171,21 @@ function AccountUploadBox({ account }: { account: Account }) {
         </div>
       </div>
 
+      <BalanceSection account={account} highlightEmpty={needsBalance} />
+
       <div
-        onDragOver={e => { e.preventDefault(); setState(s => ({ ...s, dragging: true })) }}
-        onDragLeave={() => setState(s => ({ ...s, dragging: false }))}
+        onDragOver={e => { e.preventDefault(); setUploadState(s => ({ ...s, dragging: true })) }}
+        onDragLeave={() => setUploadState(s => ({ ...s, dragging: false }))}
         onDrop={onDrop}
         onClick={() => inputRef.current?.click()}
         className={clsx(
           'border-2 border-dashed rounded-lg p-5 flex flex-col items-center gap-2 cursor-pointer transition-colors',
-          state.dragging ? 'border-blue-500 bg-blue-500/10' : 'border-slate-600 hover:border-slate-500 hover:bg-slate-700/30'
+          uploadState.dragging ? 'border-blue-500 bg-blue-500/10' : 'border-slate-600 hover:border-slate-500 hover:bg-slate-700/30'
         )}
       >
         <Upload size={20} className="text-slate-400" />
         <span className="text-xs text-slate-400">
-          {state.status === 'loading' ? 'Procesando...' : 'Arrastra o haz clic'}
+          {uploadState.status === 'loading' ? 'Procesando...' : 'Arrastra o haz clic'}
         </span>
         <span className="text-xs text-slate-600 uppercase">{accept}</span>
       </div>
@@ -93,16 +193,29 @@ function AccountUploadBox({ account }: { account: Account }) {
       <input ref={inputRef} type="file" accept={accept} className="hidden"
         onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
 
-      {state.status === 'success' && state.result && (
-        <div className="flex items-start gap-2 text-xs bg-green-500/10 border border-green-500/30 rounded-lg px-3 py-2">
-          <CheckCircle size={14} className="text-green-400 shrink-0 mt-0.5" />
-          <span className="text-green-400 font-medium">{state.result.imported} importadas · {state.result.duplicates} duplicadas</span>
+      {uploadState.status === 'success' && uploadState.result && (
+        <div className="space-y-2">
+          <div className="flex items-start gap-2 text-xs bg-green-500/10 border border-green-500/30 rounded-lg px-3 py-2">
+            <CheckCircle size={14} className="text-green-400 shrink-0 mt-0.5" />
+            <span className="text-green-400 font-medium">
+              {uploadState.result.imported} importadas · {uploadState.result.duplicates} duplicadas
+            </span>
+          </div>
+          {!uploadState.result.balance_updated && uploadState.result.last_transaction_date && (
+            <div className="text-xs text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded-lg px-3 py-2">
+              El extracto no incluye el saldo. Introdúcelo arriba a fecha{' '}
+              <span className="font-medium">
+                {new Date(uploadState.result.last_transaction_date + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </span>
+              .
+            </div>
+          )}
         </div>
       )}
-      {state.status === 'error' && (
+      {uploadState.status === 'error' && (
         <div className="flex items-start gap-2 text-xs bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
           <XCircle size={14} className="text-red-400 shrink-0 mt-0.5" />
-          <span className="text-red-400">{state.error}</span>
+          <span className="text-red-400">{uploadState.error}</span>
         </div>
       )}
     </div>

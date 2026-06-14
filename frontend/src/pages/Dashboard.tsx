@@ -4,7 +4,7 @@ import {
   PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, Tooltip,
   CartesianGrid, ResponsiveContainer, Legend,
 } from 'recharts'
-import { fetchAccounts, fetchSummary, fetchTransactions, fetchPayrollDates, Account } from '../api/client'
+import { fetchAccounts, fetchSummary, fetchAnalyticsData, fetchPayrollDates, Account } from '../api/client'
 
 type PeriodType = 'payroll' | 'month' | 'quarter' | 'year'
 
@@ -105,40 +105,31 @@ export default function Dashboard() {
   const activePeriod = period ?? { start: fallbackPeriod.start, end: fallbackPeriod.end }
 
   const dashboardAccounts = accounts.filter(a => a.show_on_dashboard)
-  const savingsAccounts = accounts.filter(a => a.include_in_savings && a.current_balance !== null)
-  const totalSavings = savingsAccounts.reduce((s, a) => s + Number(a.current_balance), 0)
+  const savingsAccounts = accounts.filter(a => a.include_in_savings)
   const hasSavings = savingsAccounts.length > 0
+  const totalSavings = savingsAccounts.reduce((s, a) => s + Number(a.current_balance ?? 0), 0)
+  const missingBalances = savingsAccounts.filter(a => a.current_balance === null)
 
-  const { data: txList } = useQuery({
-    queryKey: ['transactions', activePeriod.start, activePeriod.end, 500],
-    queryFn: () => fetchTransactions({ start: activePeriod.start, end: activePeriod.end, limit: 500 }),
+  // Pie chart: analytics-data filtered to savings accounts, server-side
+  const { data: analyticsData } = useQuery({
+    queryKey: ['analytics-data', 'savings', activePeriod.start, activePeriod.end],
+    queryFn: () => fetchAnalyticsData({ start: activePeriod.start, end: activePeriod.end, savings_only: true }),
   })
+  const pieData = (analyticsData?.categories ?? []).filter(c => c.total > 0)
 
+  // Trend: last 6 calendar months, savings accounts only
   const monthRanges = Array.from({ length: 6 }, (_, i) => getCalendarMonthRange(5 - i))
-  const { data: m0 } = useQuery({ queryKey: ['summary', monthRanges[0].start, monthRanges[0].end], queryFn: () => fetchSummary({ start: monthRanges[0].start, end: monthRanges[0].end }) })
-  const { data: m1 } = useQuery({ queryKey: ['summary', monthRanges[1].start, monthRanges[1].end], queryFn: () => fetchSummary({ start: monthRanges[1].start, end: monthRanges[1].end }) })
-  const { data: m2 } = useQuery({ queryKey: ['summary', monthRanges[2].start, monthRanges[2].end], queryFn: () => fetchSummary({ start: monthRanges[2].start, end: monthRanges[2].end }) })
-  const { data: m3 } = useQuery({ queryKey: ['summary', monthRanges[3].start, monthRanges[3].end], queryFn: () => fetchSummary({ start: monthRanges[3].start, end: monthRanges[3].end }) })
-  const { data: m4 } = useQuery({ queryKey: ['summary', monthRanges[4].start, monthRanges[4].end], queryFn: () => fetchSummary({ start: monthRanges[4].start, end: monthRanges[4].end }) })
-  const { data: m5 } = useQuery({ queryKey: ['summary', monthRanges[5].start, monthRanges[5].end], queryFn: () => fetchSummary({ start: monthRanges[5].start, end: monthRanges[5].end }) })
+  const { data: m0 } = useQuery({ queryKey: ['summary', 'savings', monthRanges[0].start, monthRanges[0].end], queryFn: () => fetchSummary({ start: monthRanges[0].start, end: monthRanges[0].end, savings_only: true }) })
+  const { data: m1 } = useQuery({ queryKey: ['summary', 'savings', monthRanges[1].start, monthRanges[1].end], queryFn: () => fetchSummary({ start: monthRanges[1].start, end: monthRanges[1].end, savings_only: true }) })
+  const { data: m2 } = useQuery({ queryKey: ['summary', 'savings', monthRanges[2].start, monthRanges[2].end], queryFn: () => fetchSummary({ start: monthRanges[2].start, end: monthRanges[2].end, savings_only: true }) })
+  const { data: m3 } = useQuery({ queryKey: ['summary', 'savings', monthRanges[3].start, monthRanges[3].end], queryFn: () => fetchSummary({ start: monthRanges[3].start, end: monthRanges[3].end, savings_only: true }) })
+  const { data: m4 } = useQuery({ queryKey: ['summary', 'savings', monthRanges[4].start, monthRanges[4].end], queryFn: () => fetchSummary({ start: monthRanges[4].start, end: monthRanges[4].end, savings_only: true }) })
+  const { data: m5 } = useQuery({ queryKey: ['summary', 'savings', monthRanges[5].start, monthRanges[5].end], queryFn: () => fetchSummary({ start: monthRanges[5].start, end: monthRanges[5].end, savings_only: true }) })
 
   const trendData = monthRanges.map((r, i) => {
     const s = [m0, m1, m2, m3, m4, m5][i]
     return { name: r.label, Ahorro: s ? Number(s.savings) : 0, Ingresos: s ? Number(s.income) : 0 }
   })
-
-  const categorySpend: Record<string, { name: string; color: string; value: number }> = {}
-  if (txList) {
-    for (const tx of txList.items) {
-      if (!tx.category_assignment) continue
-      const cat = tx.category_assignment.category
-      if (cat.category_type === 'income') continue
-      const amount = Math.abs(Number(tx.amount))
-      if (!categorySpend[cat.id]) categorySpend[cat.id] = { name: cat.name, color: cat.color, value: 0 }
-      categorySpend[cat.id].value += amount
-    }
-  }
-  const pieData = Object.values(categorySpend).filter(d => d.value > 0)
 
   const periodLabel = period
     ? `${new Date(activePeriod.start + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'short' })} – ${new Date(activePeriod.end + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })}`
@@ -147,7 +138,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <h2 className="text-xl font-semibold text-white">Dashboard</h2>
           <select
             value={periodType}
@@ -168,6 +159,11 @@ export default function Dashboard() {
           <div className="text-right">
             <div className="text-xs text-slate-400">Ahorro total</div>
             <div className="text-2xl font-bold text-green-400">{fmt(totalSavings)}</div>
+            {missingBalances.length > 0 && (
+              <div className="text-xs text-amber-400 mt-0.5">
+                Sin saldo: {missingBalances.map(a => a.name).join(', ')}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -186,15 +182,18 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-slate-800 rounded-xl p-5">
-          <h3 className="text-sm font-medium text-slate-300 mb-4">Gasto por categoría</h3>
+          <h3 className="text-sm font-medium text-slate-300 mb-1">Gasto por categoría</h3>
+          <p className="text-xs text-slate-500 mb-3">Cuentas de ahorro total · período seleccionado</p>
           {pieData.length > 0 ? (
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
-                <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                <Pie data={pieData} dataKey="total" nameKey="name" cx="50%" cy="50%" outerRadius={90}
+                  label={({ percent }) => percent > 0.04 ? `${(percent * 100).toFixed(0)}%` : ''}
+                  labelLine={false}>
                   {pieData.map((entry, index) => <Cell key={index} fill={entry.color} />)}
                 </Pie>
-                <Tooltip formatter={(v: number) => fmt(v)} contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px' }} />
+                <Tooltip formatter={(v: number) => fmt(v)} contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: 12 }} />
+                <Legend formatter={v => <span style={{ color: '#94a3b8', fontSize: 12 }}>{v}</span>} />
               </PieChart>
             </ResponsiveContainer>
           ) : (
@@ -203,7 +202,8 @@ export default function Dashboard() {
         </div>
 
         <div className="bg-slate-800 rounded-xl p-5">
-          <h3 className="text-sm font-medium text-slate-300 mb-4">Tendencia (6 meses)</h3>
+          <h3 className="text-sm font-medium text-slate-300 mb-1">Tendencia (6 meses)</h3>
+          <p className="text-xs text-slate-500 mb-3">Cuentas de ahorro total · meses naturales</p>
           <ResponsiveContainer width="100%" height={260}>
             <LineChart data={trendData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />

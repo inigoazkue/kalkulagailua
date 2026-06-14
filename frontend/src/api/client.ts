@@ -114,6 +114,8 @@ export interface InvestmentPosition {
 export interface ImportResult {
   imported: number
   duplicates: number
+  last_transaction_date: string | null
+  balance_updated: boolean
 }
 
 export const fetchAccounts = () => api.get<Account[]>('/accounts').then(r => r.data)
@@ -141,8 +143,11 @@ export const deleteCategory = (id: number) =>
 export const fetchTransactions = (params: Record<string, string | number | undefined>) =>
   api.get<TransactionList>('/transactions', { params }).then(r => r.data)
 
-export const fetchSummary = (params: { start?: string; end?: string; account_id?: number }) =>
+export const fetchSummary = (params: { start?: string; end?: string; account_id?: number; savings_only?: boolean }) =>
   api.get<TransactionSummary>('/transactions/summary', { params }).then(r => r.data)
+
+export const updateAccountBalance = (id: number, data: { balance: number; balance_date: string }) =>
+  api.put<Account>(`/accounts/${id}/balance`, data).then(r => r.data)
 
 export const assignCategory = (txId: number, categoryId: number) =>
   api.put<Transaction>(`/transactions/${txId}/category`, { category_id: categoryId }).then(r => r.data)
@@ -177,7 +182,7 @@ export interface AnalyticsData {
   summary: { income: number; fixed_expenses: number; variable_expenses: number; investment: number; net: number }
 }
 
-export const fetchAnalyticsData = (params: { start?: string; end?: string; account_id?: number }) =>
+export const fetchAnalyticsData = (params: { start?: string; end?: string; account_id?: number; savings_only?: boolean }) =>
   api.get<AnalyticsData>('/transactions/analytics-data', { params }).then(r => r.data)
 
 export const importFile = (accountId: number, file: File) => {

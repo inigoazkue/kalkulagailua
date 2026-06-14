@@ -88,6 +88,7 @@ async def get_analytics_data(
     start: Optional[date] = None,
     end: Optional[date] = None,
     account_id: Optional[int] = None,
+    savings_only: bool = Query(False),
     db: AsyncSession = Depends(get_db),
 ):
     filters = []
@@ -97,6 +98,10 @@ async def get_analytics_data(
         filters.append(Transaction.date <= end)
     if account_id:
         filters.append(Transaction.account_id == account_id)
+    if savings_only:
+        filters.append(
+            Transaction.account_id.in_(select(Account.id).where(Account.include_in_savings == True))
+        )
 
     # Daily income / expenses using GREATEST to split positive/negative
     daily_q = (
@@ -243,6 +248,7 @@ async def get_summary(
     start: Optional[date] = None,
     end: Optional[date] = None,
     account_id: Optional[int] = None,
+    savings_only: bool = Query(False),
     db: AsyncSession = Depends(get_db),
 ):
     filters = []
@@ -252,6 +258,10 @@ async def get_summary(
         filters.append(Transaction.date <= end)
     if account_id:
         filters.append(Transaction.account_id == account_id)
+    if savings_only:
+        filters.append(
+            Transaction.account_id.in_(select(Account.id).where(Account.include_in_savings == True))
+        )
 
     result = await db.execute(
         select(Transaction)

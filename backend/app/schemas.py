@@ -125,9 +125,16 @@ class AssignCategoryIn(BaseModel):
     category_id: int
 
 
+class AccountBalanceUpdate(BaseModel):
+    balance: Decimal
+    balance_date: date
+
+
 class ImportResult(BaseModel):
     imported: int
     duplicates: int
+    last_transaction_date: Optional[date] = None
+    balance_updated: bool = False
 
 
 class InvestmentAssetOut(BaseModel):

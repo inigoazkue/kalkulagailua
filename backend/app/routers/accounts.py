@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
 from app.models import Account
-from app.schemas import AccountOut, AccountCreate, AccountUpdate
+from app.schemas import AccountOut, AccountCreate, AccountUpdate, AccountBalanceUpdate
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
@@ -31,6 +31,19 @@ async def update_account(account_id: int, body: AccountUpdate, db: AsyncSession 
         raise HTTPException(status_code=404, detail="Cuenta no encontrada")
     for k, v in body.model_dump(exclude_none=True).items():
         setattr(account, k, v)
+    await db.commit()
+    await db.refresh(account)
+    return account
+
+
+@router.put("/{account_id}/balance", response_model=AccountOut)
+async def update_balance(account_id: int, body: AccountBalanceUpdate, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Account).where(Account.id == account_id))
+    account = result.scalar_one_or_none()
+    if not account:
+        raise HTTPException(status_code=404, detail="Cuenta no encontrada")
+    account.current_balance = body.balance
+    account.balance_date = body.balance_date
     await db.commit()
     await db.refresh(account)
     return account

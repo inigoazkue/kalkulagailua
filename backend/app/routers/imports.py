@@ -92,4 +92,11 @@ async def import_file(
         imported += 1
 
     await db.commit()
-    return ImportResult(imported=imported, duplicates=duplicates)
+
+    last_date = max((pt.date for pt in parsed), default=None) if parsed else None
+    return ImportResult(
+        imported=imported,
+        duplicates=duplicates,
+        last_transaction_date=last_date,
+        balance_updated=metadata.current_balance is not None,
+    )
