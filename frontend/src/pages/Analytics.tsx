@@ -267,7 +267,7 @@ export default function Analytics() {
                       cx="50%"
                       cy="50%"
                       outerRadius={90}
-                      label={({ name, percent }) => percent > 0.04 ? `${(percent * 100).toFixed(0)}%` : ''}
+                      label={({ percent }) => percent > 0.04 ? `${(percent * 100).toFixed(0)}%` : ''}
                       labelLine={false}
                     >
                       {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
