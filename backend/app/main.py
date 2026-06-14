@@ -4,6 +4,9 @@ from sqlalchemy import select, func
 from app.database import AsyncSessionLocal
 from app.models import Category, CategoryKeyword, CategoryTypeEnum
 from app.routers import transactions, categories, investments, imports, accounts
+from app.routers import auth as auth_router
+from app.auth import verify_token
+from fastapi import Depends
 
 app = FastAPI(title="Kalkulagailua API", version="1.0.0")
 
@@ -15,11 +18,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(transactions.router, prefix="/api")
-app.include_router(categories.router, prefix="/api")
-app.include_router(investments.router, prefix="/api")
-app.include_router(imports.router, prefix="/api")
-app.include_router(accounts.router, prefix="/api")
+app.include_router(auth_router.router)
+
+protected = {"dependencies": [Depends(verify_token)]}
+app.include_router(transactions.router, prefix="/api", **protected)
+app.include_router(categories.router, prefix="/api", **protected)
+app.include_router(investments.router, prefix="/api", **protected)
+app.include_router(imports.router, prefix="/api", **protected)
+app.include_router(accounts.router, prefix="/api", **protected)
 
 DEFAULT_CATEGORIES = [
     {"name": "Nómina", "category_type": CategoryTypeEnum.income, "color": "#22c55e", "keywords": ["nomina", "nómina", "salario"]},
