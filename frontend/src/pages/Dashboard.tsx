@@ -71,13 +71,27 @@ function AccountSummaryCard({ account, start, end }: { account: Account; start: 
           <div className="text-slate-400">Ingresos</div>
           <div className="text-green-400 font-semibold mt-0.5">{fmt(summary?.income ?? 0)}</div>
         </div>
-        <div className="bg-slate-700/50 rounded-lg p-2">
-          <div className="text-slate-400">Gastos fijos</div>
-          <div className="text-red-400 font-semibold mt-0.5">{fmt(summary?.fixed_expenses ?? 0)}</div>
+        <div className="bg-slate-700/50 rounded-lg p-2 flex gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="text-slate-400">Fijos</div>
+            <div className="text-red-400 font-semibold mt-0.5 truncate">{fmt(summary?.fixed_expenses ?? 0)}</div>
+          </div>
+          <div className="w-px bg-slate-600 self-stretch shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="text-slate-400">Variables</div>
+            <div className="text-orange-400 font-semibold mt-0.5 truncate">{fmt(summary?.variable_expenses ?? 0)}</div>
+          </div>
         </div>
-        <div className="bg-slate-700/50 rounded-lg p-2">
-          <div className="text-slate-400">Gastos variables</div>
-          <div className="text-orange-400 font-semibold mt-0.5">{fmt(summary?.variable_expenses ?? 0)}</div>
+        <div className="bg-slate-700/50 rounded-lg p-2 flex gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="text-slate-400">Ahorro</div>
+            <div className="text-emerald-400 font-semibold mt-0.5 truncate">{fmt(summary?.savings_transfer ?? 0)}</div>
+          </div>
+          <div className="w-px bg-slate-600 self-stretch shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="text-slate-400">Inversión</div>
+            <div className="text-purple-400 font-semibold mt-0.5 truncate">{fmt(summary?.investment ?? 0)}</div>
+          </div>
         </div>
         <div className="bg-slate-700/50 rounded-lg p-2">
           <div className="text-slate-400">Neto período</div>
