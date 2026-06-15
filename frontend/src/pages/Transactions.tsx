@@ -11,7 +11,6 @@ import {
   fetchTransactions, fetchCategories, fetchAccounts, fetchPayrollDates,
   assignCategory, Transaction,
 } from '../api/client'
-import { useNavigate } from 'react-router-dom'
 import { Link2 } from 'lucide-react'
 import { clsx } from 'clsx'
 import {
