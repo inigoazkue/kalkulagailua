@@ -35,7 +35,7 @@ function NavItem({ to, label, icon: Icon }: { to: string; label: string; icon: R
 
 export default function Sidebar({ onLogout }: { onLogout: () => void }) {
   return (
-    <aside className="w-56 bg-slate-800 flex flex-col py-6 px-3 shrink-0">
+    <aside className="hidden md:flex w-56 bg-slate-800 flex-col py-6 px-3 shrink-0">
       <div className="px-3 mb-6">
         <h1 className="text-lg font-bold text-white tracking-tight">Kalkulagailua</h1>
         <p className="text-xs text-slate-400">Finanzas personales</p>

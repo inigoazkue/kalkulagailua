@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#1e293b"/>
+  <rect x="24" y="24" width="464" height="464" rx="88" fill="#0f172a"/>
+  <!-- K: vertical stem -->
+  <rect x="128" y="112" width="56" height="288" rx="6" fill="#22c55e"/>
+  <!-- K: upper arm -->
+  <polygon points="184,256 184,220 388,112 388,148" fill="#22c55e"/>
+  <!-- K: lower arm -->
+  <polygon points="184,256 184,292 388,400 388,364" fill="#22c55e"/>
+</svg>

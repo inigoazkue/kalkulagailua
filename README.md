@@ -68,6 +68,27 @@ App web de finanzas personales auto-hospedada. Importas tus extractos bancarios 
 | Trade Republic | CSV | Cuando disponible | Profile → Account Statements → Transaction Export |
 | Bit2me | XLSX | No | Histórico de actividad → Exportar por año |
 
+## Instalación en el móvil (PWA)
+
+La app es una PWA instalable en Android e iOS directamente desde el navegador — sin Play Store.
+
+**Android (Chrome):**
+1. Abre la app en Chrome
+2. Chrome mostrará un banner "Añadir a pantalla de inicio" (o busca la opción en el menú ⋮)
+3. Confirma → aparece el icono en el launcher como una app nativa
+
+**iOS (Safari):**
+1. Abre la app en Safari
+2. Menú compartir (□↑) → "Añadir a pantalla de inicio"
+3. Confirma
+
+**Importar CSV desde el móvil:**
+- En la pantalla Importar, toca la zona de carga de cada cuenta
+- Android abrirá el selector de archivos: accede a Descargas, Google Drive, etc.
+- Los extractos descargados desde el banco (o enviados por email / Drive) son directamente accesibles
+
+> La app debe estar en HTTPS para que la instalación PWA funcione. Si usas el dominio propio, asegúrate de tener certificado SSL activo.
+
 ## Instalación
 
 ### Requisitos

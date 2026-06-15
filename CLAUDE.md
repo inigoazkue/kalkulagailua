@@ -84,6 +84,24 @@ Migraciones existentes:
 - `0008` is_validated en internal_transfers
 - `0009` savings en categorytypeenum (`ALTER TYPE ... ADD VALUE IF NOT EXISTS`)
 
+## PWA (Progressive Web App)
+
+Archivos en `frontend/public/`:
+- `manifest.json` — nombre, iconos, display: standalone, theme/background color
+- `icon.svg` — icono K geométrico con fondo slate/verde, sirve para launcher y splash
+- `sw.js` — service worker: network-first para assets estáticos, nunca intercepta `/api/`
+
+Registrado en `main.tsx` (window load event). El SW habilita la instalación nativa en Android vía Chrome → "Añadir a pantalla de inicio".
+
+Requisito de instalación: la app debe estar en HTTPS.
+
+### Navegación móvil
+- **Desktop (md+)**: sidebar fijo a la izquierda (w-56)
+- **Móvil (<md)**: sidebar oculto, header top con título + `BottomNav.tsx`
+- `BottomNav`: 5 tabs fijos (Inicio, Analítica, Movim., Importar, Más) + sheet overlay para el resto (Trans. internas, Inversiones, Cuentas, Categorías, Salir)
+- El contenido principal tiene `pb-20 md:pb-6` para no quedar tapado por el bottom nav
+- `paddingBottom: env(safe-area-inset-bottom)` en el bottom bar para iPhones con notch/home indicator
+
 ## Estructura de páginas (frontend)
 
 ### Navegación (Sidebar)
