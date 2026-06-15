@@ -1,8 +1,9 @@
+from calendar import monthrange
 from collections import Counter
 from datetime import date
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from app.database import get_db
 from app.models import Account, Transaction, TransactionCategory, BankEnum
 from app.schemas import ImportResult
@@ -11,6 +12,15 @@ from app.parsers.myinvestor import MyInvestorParser
 from app.parsers.trade_republic import TradeRepublicParser
 from app.parsers.bit2me import Bit2meParser
 from app.services.categorizer import auto_categorize
+from app.services.transfer_matcher import match_transfers
+
+
+def _subtract_months(d: date, months: int) -> date:
+    total_months = d.year * 12 + d.month - months
+    year = (total_months - 1) // 12
+    month = (total_months - 1) % 12 + 1
+    day = min(d.day, monthrange(year, month)[1])
+    return date(year, month, day)
 
 router = APIRouter(prefix="/imports", tags=["imports"])
 
@@ -52,6 +62,19 @@ async def import_file(
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Error de parseo: {str(e)}")
 
+    # Smart cutoff: skip rows older than 2 months before the last recorded date
+    last_recorded_result = await db.execute(
+        select(func.max(Transaction.date)).where(Transaction.account_id == account.id)
+    )
+    last_recorded = last_recorded_result.scalar()
+
+    skipped_old = 0
+    if last_recorded is not None and parsed:
+        cutoff = _subtract_months(last_recorded, 2)
+        original_count = len(parsed)
+        parsed = [pt for pt in parsed if pt.date >= cutoff]
+        skipped_old = original_count - len(parsed)
+
     existing_result = await db.execute(
         select(Transaction.raw_hash).where(Transaction.account_id == account.id)
     )
@@ -59,6 +82,7 @@ async def import_file(
 
     imported = 0
     duplicates = 0
+    new_tx_ids: list[int] = []
     occurrence_counter: Counter = Counter()
 
     for pt in parsed:
@@ -89,14 +113,17 @@ async def import_file(
             ))
 
         existing_hashes.add(h)
+        new_tx_ids.append(tx.id)
         imported += 1
 
+    await match_transfers(db, new_tx_ids)
     await db.commit()
 
     last_date = max((pt.date for pt in parsed), default=None) if parsed else None
     return ImportResult(
         imported=imported,
         duplicates=duplicates,
+        skipped_old=skipped_old,
         last_transaction_date=last_date,
         balance_updated=metadata.current_balance is not None,
     )

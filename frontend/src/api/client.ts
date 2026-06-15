@@ -23,6 +23,7 @@ export interface Account {
   current_balance: string | null
   balance_date: string | null
   created_at: string
+  last_transaction_date: string | null
 }
 
 export interface AccountCreate {
@@ -76,6 +77,7 @@ export interface Transaction {
   balance: string | null
   imported_at: string
   category_assignment: TransactionCategoryAssignment | null
+  is_internal_transfer: boolean
 }
 
 export interface TransactionList {
@@ -114,8 +116,19 @@ export interface InvestmentPosition {
 export interface ImportResult {
   imported: number
   duplicates: number
+  skipped_old: number
   last_transaction_date: string | null
   balance_updated: boolean
+}
+
+export interface InternalTransfer {
+  id: number
+  tx_out_id: number
+  tx_in_id: number
+  matched_at: string
+  is_manual: boolean
+  tx_out: Transaction
+  tx_in: Transaction
 }
 
 export const fetchAccounts = () => api.get<Account[]>('/accounts').then(r => r.data)
@@ -184,6 +197,12 @@ export interface AnalyticsData {
 
 export const fetchAnalyticsData = (params: { start?: string; end?: string; account_id?: number; savings_only?: boolean }) =>
   api.get<AnalyticsData>('/transactions/analytics-data', { params }).then(r => r.data)
+
+export const fetchTransfers = () =>
+  api.get<InternalTransfer[]>('/transfers').then(r => r.data)
+
+export const deleteTransfer = (id: number) =>
+  api.delete(`/transfers/${id}`)
 
 export const importFile = (accountId: number, file: File) => {
   const form = new FormData()

@@ -161,6 +161,19 @@ class InvestmentTransaction(Base):
     account: Mapped["Account"] = relationship("Account", back_populates="investment_transactions")
 
 
+class InternalTransfer(Base):
+    __tablename__ = "internal_transfers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    tx_out_id: Mapped[int] = mapped_column(Integer, ForeignKey("transactions.id"), nullable=False, unique=True)
+    tx_in_id: Mapped[int] = mapped_column(Integer, ForeignKey("transactions.id"), nullable=False, unique=True)
+    matched_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+    is_manual: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    tx_out: Mapped["Transaction"] = relationship("Transaction", foreign_keys=[tx_out_id])
+    tx_in: Mapped["Transaction"] = relationship("Transaction", foreign_keys=[tx_in_id])
+
+
 class PriceCache(Base):
     __tablename__ = "price_cache"
 

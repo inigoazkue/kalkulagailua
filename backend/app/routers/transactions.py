@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.orm import selectinload
 from app.database import get_db
-from app.models import Transaction, TransactionCategory, Category, CategoryTypeEnum, Account, CategoryKeyword
+from app.models import Transaction, TransactionCategory, Category, CategoryTypeEnum, Account, CategoryKeyword, InternalTransfer
 from app.schemas import (
     TransactionOut, TransactionListOut, TransactionSummaryOut, AssignCategoryIn
 )
@@ -102,6 +102,11 @@ async def get_analytics_data(
         filters.append(
             Transaction.account_id.in_(select(Account.id).where(Account.include_in_savings == True))
         )
+    filters.append(
+        ~Transaction.id.in_(
+            select(InternalTransfer.tx_out_id).union(select(InternalTransfer.tx_in_id))
+        )
+    )
 
     # Daily income / expenses using GREATEST to split positive/negative
     daily_q = (
@@ -240,6 +245,22 @@ async def list_transactions(
     result = await db.execute(paginated)
     items = result.scalars().all()
 
+    if items:
+        item_ids = [tx.id for tx in items]
+        transfer_result = await db.execute(
+            select(InternalTransfer.tx_out_id, InternalTransfer.tx_in_id)
+            .where(or_(
+                InternalTransfer.tx_out_id.in_(item_ids),
+                InternalTransfer.tx_in_id.in_(item_ids),
+            ))
+        )
+        transfer_ids: set[int] = set()
+        for row in transfer_result.all():
+            transfer_ids.add(row.tx_out_id)
+            transfer_ids.add(row.tx_in_id)
+        for tx in items:
+            tx.is_internal_transfer = tx.id in transfer_ids
+
     return TransactionListOut(items=items, total=total, page=page, limit=limit)
 
 
@@ -262,6 +283,11 @@ async def get_summary(
         filters.append(
             Transaction.account_id.in_(select(Account.id).where(Account.include_in_savings == True))
         )
+    filters.append(
+        ~Transaction.id.in_(
+            select(InternalTransfer.tx_out_id).union(select(InternalTransfer.tx_in_id))
+        )
+    )
 
     result = await db.execute(
         select(Transaction)

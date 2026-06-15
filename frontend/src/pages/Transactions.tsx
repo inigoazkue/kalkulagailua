@@ -59,6 +59,10 @@ function CategoryDropdown({ tx }: { tx: Transaction }) {
     },
   })
 
+  if (tx.is_internal_transfer) {
+    return <span className="text-xs px-2 py-1 rounded-md bg-sky-500/20 text-sky-300">↔ Interna</span>
+  }
+
   const current = tx.category_assignment?.category
 
   return (

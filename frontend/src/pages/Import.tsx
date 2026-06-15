@@ -168,6 +168,11 @@ function AccountUploadBox({ account }: { account: Account }) {
         <div>
           <span className="font-medium text-white text-sm">{account.name}</span>
           <span className="ml-2 text-xs text-slate-500">{SUBTYPE_LABELS[account.subtype]}</span>
+          {account.last_transaction_date && (
+            <span className="ml-2 text-xs text-slate-600">
+              Última importación: {new Date(account.last_transaction_date + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </span>
+          )}
         </div>
       </div>
 
@@ -199,6 +204,7 @@ function AccountUploadBox({ account }: { account: Account }) {
             <CheckCircle size={14} className="text-green-400 shrink-0 mt-0.5" />
             <span className="text-green-400 font-medium">
               {uploadState.result.imported} importadas · {uploadState.result.duplicates} duplicadas
+              {uploadState.result.skipped_old > 0 && ` · ${uploadState.result.skipped_old} anteriores omitidas`}
             </span>
           </div>
           {!uploadState.result.balance_updated && uploadState.result.last_transaction_date && (

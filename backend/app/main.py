@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, func
 from app.database import AsyncSessionLocal
 from app.models import Category, CategoryKeyword, CategoryTypeEnum
-from app.routers import transactions, categories, investments, imports, accounts
+from app.routers import transactions, categories, investments, imports, accounts, transfers
 from app.routers import auth as auth_router
 from app.auth import verify_token
 from fastapi import Depends
@@ -26,6 +26,7 @@ app.include_router(categories.router, prefix="/api", **protected)
 app.include_router(investments.router, prefix="/api", **protected)
 app.include_router(imports.router, prefix="/api", **protected)
 app.include_router(accounts.router, prefix="/api", **protected)
+app.include_router(transfers.router, prefix="/api", **protected)
 
 DEFAULT_CATEGORIES = [
     {"name": "Nómina", "category_type": CategoryTypeEnum.income, "color": "#22c55e", "keywords": ["nomina", "nómina", "salario"]},

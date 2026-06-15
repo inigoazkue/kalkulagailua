@@ -18,6 +18,7 @@ class AccountOut(BaseModel):
     current_balance: Optional[Decimal]
     balance_date: Optional[date]
     created_at: datetime
+    last_transaction_date: Optional[date] = None
 
     model_config = {"from_attributes": True}
 
@@ -102,6 +103,7 @@ class TransactionOut(BaseModel):
     balance: Optional[Decimal]
     imported_at: datetime
     category_assignment: Optional[TransactionCategoryOut] = None
+    is_internal_transfer: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -133,8 +135,21 @@ class AccountBalanceUpdate(BaseModel):
 class ImportResult(BaseModel):
     imported: int
     duplicates: int
+    skipped_old: int = 0
     last_transaction_date: Optional[date] = None
     balance_updated: bool = False
+
+
+class InternalTransferOut(BaseModel):
+    id: int
+    tx_out_id: int
+    tx_in_id: int
+    matched_at: datetime
+    is_manual: bool
+    tx_out: TransactionOut
+    tx_in: TransactionOut
+
+    model_config = {"from_attributes": True}
 
 
 class InvestmentAssetOut(BaseModel):

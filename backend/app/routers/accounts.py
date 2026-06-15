@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from app.database import get_db
-from app.models import Account
+from app.models import Account, Transaction
 from app.schemas import AccountOut, AccountCreate, AccountUpdate, AccountBalanceUpdate
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
@@ -11,7 +11,20 @@ router = APIRouter(prefix="/accounts", tags=["accounts"])
 @router.get("", response_model=list[AccountOut])
 async def list_accounts(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Account).order_by(Account.bank, Account.name))
-    return result.scalars().all()
+    accounts = result.scalars().all()
+
+    dates_result = await db.execute(
+        select(Transaction.account_id, func.max(Transaction.date).label('last_date'))
+        .group_by(Transaction.account_id)
+    )
+    dates_map = {row.account_id: row.last_date for row in dates_result.all()}
+
+    out = []
+    for acc in accounts:
+        d = AccountOut.model_validate(acc).model_dump()
+        d['last_transaction_date'] = dates_map.get(acc.id)
+        out.append(AccountOut.model_validate(d))
+    return out
 
 
 @router.post("", response_model=AccountOut, status_code=201)

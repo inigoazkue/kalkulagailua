@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, List, TrendingUp, LogOut, BarChart2, Settings, Wallet, Upload, Tag } from 'lucide-react'
+import { LayoutDashboard, List, TrendingUp, LogOut, BarChart2, Settings, Wallet, Upload, Tag, ArrowLeftRight } from 'lucide-react'
 import { clsx } from 'clsx'
 
 const mainNav = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/analytics', label: 'Analítica', icon: BarChart2 },
   { to: '/transactions', label: 'Transacciones', icon: List },
+  { to: '/transfers', label: 'Transferencias', icon: ArrowLeftRight },
   { to: '/investments', label: 'Inversiones', icon: TrendingUp },
 ]
 

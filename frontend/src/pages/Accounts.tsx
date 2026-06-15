@@ -169,6 +169,11 @@ function AccountCard({ account }: { account: Account }) {
           {account.balance_date && (
             <p className="text-xs text-slate-500">actualizado {account.balance_date}</p>
           )}
+          {account.last_transaction_date && (
+            <p className="text-xs text-slate-600">
+              Última tx: {new Date(account.last_transaction_date + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </p>
+          )}
         </div>
         <div className="flex gap-1 shrink-0">
           <button onClick={() => setEditing(true)} className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-700 transition-colors">
