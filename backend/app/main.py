@@ -1,4 +1,5 @@
-from fastapi import FastAPI
+import asyncio
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, func
 from app.database import AsyncSessionLocal
@@ -6,7 +7,7 @@ from app.models import Category, CategoryKeyword, CategoryTypeEnum
 from app.routers import transactions, categories, investments, imports, accounts, transfers, backup
 from app.routers import auth as auth_router
 from app.auth import verify_token
-from fastapi import Depends
+from app.services.categorizer import auto_categorize_all
 
 app = FastAPI(title="Kalkulagailua API", version="1.0.0")
 
@@ -41,6 +42,22 @@ DEFAULT_CATEGORIES = [
     {"name": "Ocio", "category_type": CategoryTypeEnum.variable_expense, "color": "#ec4899", "keywords": ["netflix", "spotify", "amazon prime", "cine", "teatro", "concierto"]},
     {"name": "Ahorro", "category_type": CategoryTypeEnum.savings, "color": "#10b981", "keywords": []},
 ]
+
+
+async def _auto_categorize_loop():
+    await asyncio.sleep(15 * 60)
+    while True:
+        try:
+            async with AsyncSessionLocal() as db:
+                await auto_categorize_all(db)
+        except Exception:
+            pass
+        await asyncio.sleep(15 * 60)
+
+
+@app.on_event("startup")
+async def start_background_tasks():
+    asyncio.create_task(_auto_categorize_loop())
 
 
 @app.on_event("startup")

@@ -77,6 +77,7 @@ class Transaction(Base):
     balance: Mapped[Decimal | None] = mapped_column(Numeric(18, 4), nullable=True)
     raw_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     imported_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+    blocked_from_auto_categorize: Mapped[bool] = mapped_column(Boolean, default=False)
 
     account: Mapped["Account"] = relationship("Account", back_populates="transactions")
     category_assignment: Mapped["TransactionCategory | None"] = relationship(

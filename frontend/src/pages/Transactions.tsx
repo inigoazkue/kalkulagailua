@@ -9,7 +9,7 @@ import {
 } from '@tanstack/react-table'
 import {
   fetchTransactions, fetchCategories, fetchAccounts, fetchPayrollDates,
-  assignCategory, Transaction,
+  assignCategory, removeCategory, Transaction,
 } from '../api/client'
 import { Link2 } from 'lucide-react'
 import { clsx } from 'clsx'
@@ -64,6 +64,14 @@ function CategoryDropdown({ tx }: { tx: Transaction }) {
     },
   })
 
+  const removeMutation = useMutation({
+    mutationFn: () => removeCategory(tx.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['transactions'] })
+      setOpen(false)
+    },
+  })
+
   if (tx.is_internal_transfer) {
     const cat = tx.category_assignment?.category
     return (
@@ -113,6 +121,15 @@ function CategoryDropdown({ tx }: { tx: Transaction }) {
       </button>
       {open && (
         <div className="absolute z-10 mt-1 w-52 bg-slate-700 rounded-lg shadow-xl border border-slate-600 py-1 max-h-72 overflow-y-auto">
+          {current && (
+            <button
+              onClick={() => removeMutation.mutate()}
+              className="w-full text-left px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-600 flex items-center gap-2 border-b border-slate-600"
+            >
+              <span className="w-2 h-2 rounded-full bg-slate-500 shrink-0" />
+              Sin categoría
+            </button>
+          )}
           {grouped.map(group => (
             <div key={group.type}>
               <div className="px-3 pt-2 pb-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider sticky top-0 bg-slate-700">

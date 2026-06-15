@@ -83,6 +83,7 @@ Migraciones existentes:
 - `0007` transfer_blocklist table
 - `0008` is_validated en internal_transfers
 - `0009` savings en categorytypeenum (`ALTER TYPE ... ADD VALUE IF NOT EXISTS`)
+- `0010` `blocked_from_auto_categorize BOOLEAN NOT NULL DEFAULT false` en transactions
 
 ## PWA (Progressive Web App)
 
@@ -189,6 +190,18 @@ El hash `raw_hash` se calcula en `parsers/base.py`:
 - **Ocurrencia 1**: `SHA256(fecha|descripción|importe)` — retrocompatible
 - **Ocurrencia 2+**: `SHA256(fecha|descripción|importe|{saldo})` o `SHA256(...|occ:N)`
 - El contador se reinicia en cada importación (por sesión)
+
+### Eliminación de categoría (`DELETE /transactions/{id}/category`)
+Elimina el `TransactionCategory` de esa transacción y pone `blocked_from_auto_categorize=True`.
+La transacción queda sin categoría y nunca será re-categorizada por la rutina de background.
+El dropdown de categorías muestra "Sin categoría" arriba cuando hay categoría actual.
+
+### Auto-categorización en background
+`auto_categorize_all(db)` en `services/categorizer.py`:
+- Obtiene todas las transacciones sin categoría y con `blocked_from_auto_categorize=False`
+- Para cada una, aplica la misma lógica de keyword ilike que `auto_categorize`
+- Se lanza al arrancar en un asyncio task (`_auto_categorize_loop`) que corre cada 15 minutos
+- El primer disparo es a los 15 minutos del arranque (no en el startup inmediato)
 
 ### Auto-aprendizaje de categorías (`PUT /transactions/{id}/category`)
 Parámetro `learn: bool = Query(True)`. Cuando `learn=True`:

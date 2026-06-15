@@ -4,7 +4,7 @@ from decimal import Decimal
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func, and_, or_, delete
 from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models import Transaction, TransactionCategory, Category, CategoryTypeEnum, Account, CategoryKeyword, InternalTransfer
@@ -378,3 +378,40 @@ async def assign_category(
         .where(Transaction.id == transaction_id)
     )
     return tx_result2.scalar_one()
+
+
+@router.delete("/transactions/{transaction_id}/category", response_model=TransactionOut)
+async def remove_category(
+    transaction_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    tx_result = await db.execute(
+        select(Transaction)
+        .options(
+            selectinload(Transaction.category_assignment).selectinload(TransactionCategory.category)
+        )
+        .where(Transaction.id == transaction_id)
+    )
+    tx = tx_result.scalar_one_or_none()
+    if tx is None:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+    if tx.category_assignment:
+        await db.execute(
+            delete(TransactionCategory).where(TransactionCategory.transaction_id == transaction_id)
+        )
+
+    tx.blocked_from_auto_categorize = True
+    await db.commit()
+
+    tx_result2 = await db.execute(
+        select(Transaction)
+        .options(
+            selectinload(Transaction.category_assignment).selectinload(TransactionCategory.category)
+        )
+        .where(Transaction.id == transaction_id)
+    )
+    tx2 = tx_result2.scalar_one()
+    tx2.is_internal_transfer = False
+    tx2.transfer_id = None
+    return tx2

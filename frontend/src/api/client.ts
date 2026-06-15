@@ -168,6 +168,9 @@ export const updateAccountBalance = (id: number, data: { balance: number; balanc
 export const assignCategory = (txId: number, categoryId: number, learn = true) =>
   api.put<Transaction>(`/transactions/${txId}/category${learn ? '' : '?learn=false'}`, { category_id: categoryId }).then(r => r.data)
 
+export const removeCategory = (txId: number) =>
+  api.delete<Transaction>(`/transactions/${txId}/category`).then(r => r.data)
+
 export const fetchAssets = () =>
   api.get<InvestmentAsset[]>('/investments/assets').then(r => r.data)
 
