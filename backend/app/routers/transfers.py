@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload, aliased
 from app.database import get_db
 from app.models import InternalTransfer, Transaction, TransactionCategory, TransferBlocklist
-from app.schemas import InternalTransferOut
+from app.schemas import InternalTransferOut, ValidateBulkIn
 from app.services.transfer_matcher import match_all_transfers
 
 router = APIRouter(prefix="/transfers", tags=["transfers"])
@@ -43,13 +43,24 @@ async def detect_transfers(db: AsyncSession = Depends(get_db)):
     return {"created": created}
 
 
+@router.post("/validate")
+async def validate_transfers(body: ValidateBulkIn, db: AsyncSession = Depends(get_db)):
+    """Validate or unvalidate a batch of transfers."""
+    await db.execute(
+        update(InternalTransfer)
+        .where(InternalTransfer.id.in_(body.ids))
+        .values(is_validated=body.validated)
+    )
+    await db.commit()
+    return {"updated": len(body.ids)}
+
+
 @router.delete("/{transfer_id}", status_code=204)
 async def delete_transfer(transfer_id: int, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(InternalTransfer).where(InternalTransfer.id == transfer_id))
     transfer = result.scalar_one_or_none()
     if not transfer:
         raise HTTPException(status_code=404, detail="Transferencia no encontrada")
-    # Block the pair so force-detect won't re-link them
     db.add(TransferBlocklist(tx_out_id=transfer.tx_out_id, tx_in_id=transfer.tx_in_id))
     await db.delete(transfer)
     await db.commit()

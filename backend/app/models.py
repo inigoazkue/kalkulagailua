@@ -169,6 +169,7 @@ class InternalTransfer(Base):
     tx_in_id: Mapped[int] = mapped_column(Integer, ForeignKey("transactions.id"), nullable=False, unique=True)
     matched_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     is_manual: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_validated: Mapped[bool] = mapped_column(Boolean, default=False)
 
     tx_out: Mapped["Transaction"] = relationship("Transaction", foreign_keys=[tx_out_id])
     tx_in: Mapped["Transaction"] = relationship("Transaction", foreign_keys=[tx_in_id])

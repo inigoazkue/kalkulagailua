@@ -1,8 +1,8 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { fetchTransfers, deleteTransfer, detectTransfers, fetchAccounts } from '../api/client'
-import { Trash2, ArrowLeftRight, Search } from 'lucide-react'
+import { fetchTransfers, deleteTransfer, detectTransfers, validateTransfers, fetchAccounts } from '../api/client'
+import { Trash2, ArrowLeftRight, Search, Check } from 'lucide-react'
 import { clsx } from 'clsx'
 
 const fmt = (val: string) =>
@@ -14,6 +14,8 @@ const fmtDate = (d: string) =>
 export default function Transfers() {
   const [searchParams] = useSearchParams()
   const highlightId = searchParams.get('highlight') ? Number(searchParams.get('highlight')) : null
+
+  const [selected, setSelected] = useState<Set<number>>(new Set())
 
   const qc = useQueryClient()
   const { data: transfers = [], isLoading } = useQuery({ queryKey: ['transfers'], queryFn: fetchTransfers })
@@ -27,7 +29,31 @@ export default function Transfers() {
     }
   }, [transfers, highlightId])
 
+  // Clear selection when transfers change
+  useEffect(() => { setSelected(new Set()) }, [transfers])
+
   const accountName = (id: number) => accounts.find(a => a.id === id)?.name ?? `#${id}`
+
+  const allIds = transfers.map(t => t.id)
+  const allSelected = allIds.length > 0 && allIds.every(id => selected.has(id))
+  const someSelected = selected.size > 0
+
+  function toggleAll() {
+    if (allSelected) {
+      setSelected(new Set())
+    } else {
+      setSelected(new Set(allIds))
+    }
+  }
+
+  function toggleOne(id: number) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteTransfer(id),
@@ -45,8 +71,17 @@ export default function Transfers() {
       if (data.created === 0) {
         alert('No se han detectado nuevas transferencias internas.')
       } else {
-        alert(`Se han detectado ${data.created} nueva${data.created !== 1 ? 's' : ''} transferencia${data.created !== 1 ? 's' : ''} interna${data.created !== 1 ? 's' : ''}.`)
+        alert(`${data.created} nueva${data.created !== 1 ? 's' : ''} transferencia${data.created !== 1 ? 's' : ''} detectada${data.created !== 1 ? 's' : ''}.`)
       }
+    },
+  })
+
+  const validateMutation = useMutation({
+    mutationFn: ({ ids, validated }: { ids: number[]; validated: boolean }) =>
+      validateTransfers(ids, validated),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['transfers'] })
+      setSelected(new Set())
     },
   })
 
@@ -75,24 +110,59 @@ export default function Transfers() {
         <div className="bg-slate-800 rounded-xl p-12 flex flex-col items-center gap-3 text-center">
           <ArrowLeftRight size={32} className="text-slate-600" />
           <p className="text-slate-400 text-sm">No hay transferencias internas detectadas.</p>
-          <p className="text-xs text-slate-500">Se detectan automáticamente al importar, o usa el botón "Detectar ahora".</p>
+          <p className="text-xs text-slate-500">Se detectan al importar, o usa el botón "Detectar ahora".</p>
         </div>
       ) : (
         <div className="bg-slate-800 rounded-xl overflow-hidden">
+          {/* Bulk action bar */}
+          <div className="flex items-center gap-3 px-4 py-2.5 border-b border-slate-700 min-h-[44px]">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              ref={el => { if (el) el.indeterminate = someSelected && !allSelected }}
+              onChange={toggleAll}
+              className="w-4 h-4 rounded accent-blue-500 cursor-pointer"
+            />
+            {someSelected ? (
+              <>
+                <span className="text-xs text-slate-400">{selected.size} seleccionada{selected.size !== 1 ? 's' : ''}</span>
+                <button
+                  onClick={() => validateMutation.mutate({ ids: [...selected], validated: true })}
+                  disabled={validateMutation.isPending}
+                  className="flex items-center gap-1.5 px-3 py-1 text-xs bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white rounded-lg transition-colors"
+                >
+                  <Check size={12} />
+                  Validar selección
+                </button>
+                <button
+                  onClick={() => validateMutation.mutate({ ids: [...selected], validated: false })}
+                  disabled={validateMutation.isPending}
+                  className="px-3 py-1 text-xs bg-slate-600 hover:bg-slate-500 disabled:opacity-50 text-slate-300 rounded-lg transition-colors"
+                >
+                  Desvalidar
+                </button>
+              </>
+            ) : (
+              <span className="text-xs text-slate-500">{transfers.length} transferencia{transfers.length !== 1 ? 's' : ''}</span>
+            )}
+          </div>
+
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-700">
+                <th className="w-8 px-4 py-3" />
                 <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wide px-4 py-3">Fecha</th>
                 <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wide px-4 py-3">TX</th>
                 <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wide px-4 py-3">RX</th>
                 <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wide px-4 py-3">Importe</th>
-                <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wide px-4 py-3">Tipo</th>
+                <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wide px-4 py-3">Estado</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody>
               {transfers.map(t => {
                 const isHighlighted = t.id === highlightId
+                const isChecked = selected.has(t.id)
                 return (
                   <tr
                     key={t.id}
@@ -101,38 +171,71 @@ export default function Transfers() {
                       'border-b border-slate-700/50 transition-colors',
                       isHighlighted
                         ? 'bg-sky-500/10 ring-1 ring-inset ring-sky-500/40'
+                        : isChecked
+                        ? 'bg-slate-700/40'
                         : 'hover:bg-slate-700/30'
                     )}
                   >
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleOne(t.id)}
+                        className="w-4 h-4 rounded accent-blue-500 cursor-pointer"
+                      />
+                    </td>
                     <td className="px-4 py-3 text-sm text-slate-300">{fmtDate(t.tx_out.date)}</td>
                     <td className="px-4 py-3 text-sm">
                       <div className="text-slate-300">{accountName(t.tx_out.account_id)}</div>
-                      <div className="text-xs text-slate-500 truncate max-w-xs" title={t.tx_out.description}>{t.tx_out.description}</div>
+                      <div className="text-xs text-slate-500 truncate max-w-[200px]" title={t.tx_out.description}>{t.tx_out.description}</div>
                     </td>
                     <td className="px-4 py-3 text-sm">
                       <div className="text-slate-300">{accountName(t.tx_in.account_id)}</div>
-                      <div className="text-xs text-slate-500 truncate max-w-xs" title={t.tx_in.description}>{t.tx_in.description}</div>
+                      <div className="text-xs text-slate-500 truncate max-w-[200px]" title={t.tx_in.description}>{t.tx_in.description}</div>
                     </td>
                     <td className="px-4 py-3 text-sm font-mono font-medium text-slate-200">
                       {fmt(t.tx_in.amount)}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={clsx(
-                        'text-xs px-2 py-0.5 rounded-full',
-                        t.is_manual ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-600 text-slate-400'
-                      )}>
-                        {t.is_manual ? 'Manual' : 'Auto'}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={clsx(
+                          'text-xs px-2 py-0.5 rounded-full',
+                          t.is_manual ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-600 text-slate-400'
+                        )}>
+                          {t.is_manual ? 'Manual' : 'Auto'}
+                        </span>
+                        {t.is_validated && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 flex items-center gap-1">
+                            <Check size={10} />
+                            Validada
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => deleteMutation.mutate(t.id)}
-                        disabled={deleteMutation.isPending}
-                        className="p-1.5 text-slate-500 hover:text-red-400 rounded-lg hover:bg-slate-700 transition-colors"
-                        title="Desmarcar como transferencia interna"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => validateMutation.mutate({ ids: [t.id], validated: !t.is_validated })}
+                          disabled={validateMutation.isPending}
+                          title={t.is_validated ? 'Quitar validación' : 'Validar'}
+                          className={clsx(
+                            'p-1.5 rounded-lg transition-colors',
+                            t.is_validated
+                              ? 'text-green-400 hover:text-slate-400 hover:bg-slate-700'
+                              : 'text-slate-500 hover:text-green-400 hover:bg-slate-700'
+                          )}
+                        >
+                          <Check size={14} />
+                        </button>
+                        <button
+                          onClick={() => deleteMutation.mutate(t.id)}
+                          disabled={deleteMutation.isPending}
+                          title="Desmarcar como transferencia interna"
+                          className="p-1.5 text-slate-500 hover:text-red-400 rounded-lg hover:bg-slate-700 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )

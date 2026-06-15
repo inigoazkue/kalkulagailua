@@ -147,10 +147,16 @@ class InternalTransferOut(BaseModel):
     tx_in_id: int
     matched_at: datetime
     is_manual: bool
+    is_validated: bool
     tx_out: TransactionOut
     tx_in: TransactionOut
 
     model_config = {"from_attributes": True}
+
+
+class ValidateBulkIn(BaseModel):
+    ids: list[int]
+    validated: bool = True
 
 
 class InvestmentAssetOut(BaseModel):

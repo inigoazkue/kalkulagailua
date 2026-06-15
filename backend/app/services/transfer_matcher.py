@@ -36,8 +36,8 @@ async def _match_txs(
             continue
 
         target = abs(tx.amount)
-        from_date = tx.date - timedelta(days=2)
-        to_date = tx.date + timedelta(days=2)
+        from_date = tx.date - timedelta(days=4)
+        to_date = tx.date + timedelta(days=4)
 
         candidates_result = await db.execute(
             select(Transaction)

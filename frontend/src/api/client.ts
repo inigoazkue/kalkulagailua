@@ -128,6 +128,7 @@ export interface InternalTransfer {
   tx_in_id: number
   matched_at: string
   is_manual: boolean
+  is_validated: boolean
   tx_out: Transaction
   tx_in: Transaction
 }
@@ -207,6 +208,9 @@ export const deleteTransfer = (id: number) =>
 
 export const detectTransfers = () =>
   api.post<{ created: number }>('/transfers/detect').then(r => r.data)
+
+export const validateTransfers = (ids: number[], validated: boolean) =>
+  api.post<{ updated: number }>('/transfers/validate', { ids, validated }).then(r => r.data)
 
 export const importFile = (accountId: number, file: File) => {
   const form = new FormData()
