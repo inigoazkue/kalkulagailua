@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, List, TrendingUp, LogOut, BarChart2, Settings, Wallet, Upload, Tag, ArrowLeftRight } from 'lucide-react'
+import { LayoutDashboard, List, TrendingUp, LogOut, BarChart2, Settings, Wallet, Upload, Tag, ArrowLeftRight, Database } from 'lucide-react'
 import { clsx } from 'clsx'
 
 const mainNav = [
@@ -14,6 +14,7 @@ const settingsNav = [
   { to: '/accounts', label: 'Cuentas', icon: Wallet },
   { to: '/import', label: 'Importar', icon: Upload },
   { to: '/categories', label: 'Categorías', icon: Tag },
+  { to: '/backup', label: 'Backup', icon: Database },
 ]
 
 function NavItem({ to, label, icon: Icon }: { to: string; label: string; icon: React.ElementType }) {

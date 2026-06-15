@@ -3,22 +3,26 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, BarChart2, List, Upload,
   MoreHorizontal, ArrowLeftRight, TrendingUp,
-  Wallet, Tag, LogOut, X,
+  Wallet, Tag, LogOut, X, Database,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 
 const primaryNav = [
-  { to: '/dashboard', label: 'Inicio', icon: LayoutDashboard },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/analytics', label: 'Analítica', icon: BarChart2 },
-  { to: '/transactions', label: 'Movim.', icon: List },
+  { to: '/transactions', label: 'Transacciones', icon: List },
   { to: '/import', label: 'Importar', icon: Upload },
 ]
 
-const secondaryNav = [
+const moreMainNav = [
   { to: '/transfers', label: 'Trans. internas', icon: ArrowLeftRight },
   { to: '/investments', label: 'Inversiones', icon: TrendingUp },
+]
+
+const moreSettingsNav = [
   { to: '/accounts', label: 'Cuentas', icon: Wallet },
   { to: '/categories', label: 'Categorías', icon: Tag },
+  { to: '/backup', label: 'Backup', icon: Database },
 ]
 
 export default function BottomNav({ onLogout }: { onLogout: () => void }) {
@@ -41,8 +45,9 @@ export default function BottomNav({ onLogout }: { onLogout: () => void }) {
                 <X size={16} />
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-1 mb-1">
-              {secondaryNav.map(({ to, label, icon: Icon }) => (
+
+            <div className="grid grid-cols-2 gap-1">
+              {moreMainNav.map(({ to, label, icon: Icon }) => (
                 <button
                   key={to}
                   onClick={() => { navigate(to); setOpen(false) }}
@@ -53,7 +58,24 @@ export default function BottomNav({ onLogout }: { onLogout: () => void }) {
                 </button>
               ))}
             </div>
-            <div className="border-t border-slate-700 pt-1 pb-1">
+
+            <div className="border-t border-slate-700 mt-2 pt-2">
+              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-3 pb-1">Ajustes</p>
+              <div className="grid grid-cols-2 gap-1">
+                {moreSettingsNav.map(({ to, label, icon: Icon }) => (
+                  <button
+                    key={to}
+                    onClick={() => { navigate(to); setOpen(false) }}
+                    className="flex items-center gap-2.5 px-3 py-3 rounded-xl text-sm text-slate-300 hover:bg-slate-700 active:bg-slate-700 transition-colors text-left"
+                  >
+                    <Icon size={18} className="shrink-0 text-slate-400" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="border-t border-slate-700 mt-2 pt-1 pb-1">
               <button
                 onClick={() => { onLogout(); setOpen(false) }}
                 className="w-full flex items-center gap-2.5 px-3 py-3 rounded-xl text-sm text-slate-400 hover:text-red-400 hover:bg-slate-700/50 active:bg-slate-700/50 transition-colors"
@@ -76,18 +98,18 @@ export default function BottomNav({ onLogout }: { onLogout: () => void }) {
             key={to}
             to={to}
             className={({ isActive }) => clsx(
-              'flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-medium transition-colors',
+              'flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 text-[9px] font-medium transition-colors overflow-hidden',
               isActive ? 'text-blue-400' : 'text-slate-500'
             )}
           >
             <Icon size={22} />
-            <span>{label}</span>
+            <span className="truncate w-full text-center px-0.5">{label}</span>
           </NavLink>
         ))}
         <button
           onClick={() => setOpen(o => !o)}
           className={clsx(
-            'flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-medium transition-colors',
+            'flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 text-[9px] font-medium transition-colors',
             open ? 'text-blue-400' : 'text-slate-500'
           )}
         >

@@ -9,6 +9,7 @@ import Investments from './pages/Investments'
 import Analytics from './pages/Analytics'
 import Categories from './pages/Categories'
 import Transfers from './pages/Transfers'
+import Backup from './pages/Backup'
 import Login from './pages/Login'
 import api from './api/client'
 
@@ -51,6 +52,7 @@ export default function App() {
           <Route path="investments" element={<Investments />} />
           <Route path="categories" element={<Categories />} />
           <Route path="transfers" element={<Transfers />} />
+          <Route path="backup" element={<Backup />} />
         </Route>
       </Routes>
     </BrowserRouter>

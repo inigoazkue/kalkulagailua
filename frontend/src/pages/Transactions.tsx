@@ -30,7 +30,11 @@ const CATEGORY_TYPE_LABELS: Record<string, string> = {
   fixed_expense: 'Gastos fijos',
   variable_expense: 'Gastos variables',
   investment: 'Inversión',
+  savings: 'Ahorro',
 }
+
+const INCOME_TYPE_ORDER = ['income']
+const EXPENSE_TYPE_ORDER = ['fixed_expense', 'variable_expense', 'investment', 'savings']
 
 const BANK_LABELS: Record<string, string> = {
   caixabank: 'CaixaBank',
@@ -82,6 +86,15 @@ function CategoryDropdown({ tx }: { tx: Transaction }) {
   }
 
   const current = tx.category_assignment?.category
+  const isIncome = Number(tx.amount) > 0
+  const typeOrder = isIncome ? INCOME_TYPE_ORDER : EXPENSE_TYPE_ORDER
+  const grouped = typeOrder
+    .map(type => ({
+      type,
+      label: CATEGORY_TYPE_LABELS[type],
+      items: categories.filter(c => c.category_type === type),
+    }))
+    .filter(g => g.items.length > 0)
 
   return (
     <div className="relative">
@@ -99,16 +112,23 @@ function CategoryDropdown({ tx }: { tx: Transaction }) {
         )}
       </button>
       {open && (
-        <div className="absolute z-10 mt-1 w-52 bg-slate-700 rounded-lg shadow-xl border border-slate-600 py-1 max-h-64 overflow-y-auto">
-          {categories.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => mutation.mutate(cat.id)}
-              className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-600 flex items-center gap-2"
-            >
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-              {cat.name}
-            </button>
+        <div className="absolute z-10 mt-1 w-52 bg-slate-700 rounded-lg shadow-xl border border-slate-600 py-1 max-h-72 overflow-y-auto">
+          {grouped.map(group => (
+            <div key={group.type}>
+              <div className="px-3 pt-2 pb-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider sticky top-0 bg-slate-700">
+                {group.label}
+              </div>
+              {group.items.map(cat => (
+                <button
+                  key={cat.id}
+                  onClick={() => mutation.mutate(cat.id)}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-600 flex items-center gap-2"
+                >
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                  {cat.name}
+                </button>
+              ))}
+            </div>
           ))}
         </div>
       )}

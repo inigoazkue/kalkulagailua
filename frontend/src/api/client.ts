@@ -213,6 +213,18 @@ export const detectTransfers = () =>
 export const validateTransfers = (ids: number[], validated: boolean) =>
   api.post<{ updated: number }>('/transfers/validate', { ids, validated }).then(r => r.data)
 
+export const downloadBackup = async () => {
+  const res = await api.get('/backup/db', { responseType: 'blob' })
+  const url = URL.createObjectURL(res.data as Blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `kalkulagailua_${new Date().toISOString().slice(0, 10)}.sql`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 export const importFile = (accountId: number, file: File) => {
   const form = new FormData()
   form.append('file', file)

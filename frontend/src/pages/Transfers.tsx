@@ -11,6 +11,14 @@ const fmt = (val: string) =>
 const fmtDate = (d: string) =>
   new Date(d + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })
 
+const EXPENSE_TYPE_LABELS: Record<string, string> = {
+  fixed_expense: 'Gastos fijos',
+  variable_expense: 'Gastos variables',
+  investment: 'Inversión',
+  savings: 'Ahorro',
+}
+const EXPENSE_TYPE_ORDER = ['fixed_expense', 'variable_expense', 'investment', 'savings']
+
 function TxCategoryDropdown({ txId, current }: { txId: number; current: { id: number; name: string; color: string } | null }) {
   const [open, setOpen] = useState(false)
   const qc = useQueryClient()
@@ -24,6 +32,15 @@ function TxCategoryDropdown({ txId, current }: { txId: number; current: { id: nu
       setOpen(false)
     },
   })
+
+  // tx_out is always a debit — only show expense/savings/investment categories
+  const grouped = EXPENSE_TYPE_ORDER
+    .map(type => ({
+      type,
+      label: EXPENSE_TYPE_LABELS[type],
+      items: categories.filter(c => c.category_type === type),
+    }))
+    .filter(g => g.items.length > 0)
 
   return (
     <div className="relative mt-1">
@@ -42,16 +59,23 @@ function TxCategoryDropdown({ txId, current }: { txId: number; current: { id: nu
         <ChevronDown size={10} className="shrink-0 text-slate-400" />
       </button>
       {open && (
-        <div className="absolute z-20 mt-1 w-48 bg-slate-700 rounded-lg shadow-xl border border-slate-600 py-1 max-h-48 overflow-y-auto">
-          {categories.map(cat => (
-            <button
-              key={cat.id}
-              onClick={() => mutation.mutate(cat.id)}
-              className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-600 flex items-center gap-2"
-            >
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
-              {cat.name}
-            </button>
+        <div className="absolute z-20 mt-1 w-48 bg-slate-700 rounded-lg shadow-xl border border-slate-600 py-1 max-h-56 overflow-y-auto">
+          {grouped.map(group => (
+            <div key={group.type}>
+              <div className="px-3 pt-2 pb-1 text-[9px] font-semibold text-slate-500 uppercase tracking-wider">
+                {group.label}
+              </div>
+              {group.items.map(cat => (
+                <button
+                  key={cat.id}
+                  onClick={() => mutation.mutate(cat.id)}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-600 flex items-center gap-2"
+                >
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+                  {cat.name}
+                </button>
+              ))}
+            </div>
           ))}
         </div>
       )}
@@ -195,7 +219,8 @@ export default function Transfers() {
             )}
           </div>
 
-          <table className="w-full">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px]">
             <thead>
               <tr className="border-b border-slate-700">
                 <th className="w-8 px-4 py-3" />
@@ -294,6 +319,7 @@ export default function Transfers() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>
