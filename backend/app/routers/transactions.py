@@ -102,9 +102,6 @@ async def get_analytics_data(
         filters.append(
             Transaction.account_id.in_(select(Account.id).where(Account.include_in_savings == True))
         )
-    filters.append(
-        ~Transaction.id.in_(select(InternalTransfer.tx_in_id))
-    )
 
     # Daily income / expenses using GREATEST to split positive/negative
     daily_q = (
@@ -284,9 +281,6 @@ async def get_summary(
         filters.append(
             Transaction.account_id.in_(select(Account.id).where(Account.include_in_savings == True))
         )
-    filters.append(
-        ~Transaction.id.in_(select(InternalTransfer.tx_in_id))
-    )
 
     result = await db.execute(
         select(Transaction)
