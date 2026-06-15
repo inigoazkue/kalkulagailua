@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, aliased
 from app.database import get_db
 from app.models import InternalTransfer, Transaction, TransactionCategory, TransferBlocklist
 from app.schemas import InternalTransferOut
@@ -12,6 +12,7 @@ router = APIRouter(prefix="/transfers", tags=["transfers"])
 
 @router.get("", response_model=list[InternalTransferOut])
 async def list_transfers(db: AsyncSession = Depends(get_db)):
+    TxOut = aliased(Transaction)
     result = await db.execute(
         select(InternalTransfer)
         .options(
@@ -22,7 +23,8 @@ async def list_transfers(db: AsyncSession = Depends(get_db)):
             .selectinload(Transaction.category_assignment)
             .selectinload(TransactionCategory.category),
         )
-        .order_by(InternalTransfer.matched_at.desc())
+        .join(TxOut, InternalTransfer.tx_out_id == TxOut.id)
+        .order_by(TxOut.date.desc())
     )
     transfers = result.scalars().all()
     for t in transfers:

@@ -83,8 +83,8 @@ export default function Transfers() {
             <thead>
               <tr className="border-b border-slate-700">
                 <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wide px-4 py-3">Fecha</th>
-                <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wide px-4 py-3">Salida</th>
-                <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wide px-4 py-3">Entrada</th>
+                <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wide px-4 py-3">TX</th>
+                <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wide px-4 py-3">RX</th>
                 <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wide px-4 py-3">Importe</th>
                 <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wide px-4 py-3">Tipo</th>
                 <th className="px-4 py-3" />
