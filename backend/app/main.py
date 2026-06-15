@@ -38,6 +38,7 @@ DEFAULT_CATEGORIES = [
     {"name": "Inversión", "category_type": CategoryTypeEnum.investment, "color": "#8b5cf6", "keywords": ["inversion", "inversión", "trade republic", "myinvestor", "degiro", "etf", "fondo"]},
     {"name": "Salud", "category_type": CategoryTypeEnum.variable_expense, "color": "#06b6d4", "keywords": ["farmacia", "médico", "medico", "hospital", "clinica", "clínica", "sanidad"]},
     {"name": "Ocio", "category_type": CategoryTypeEnum.variable_expense, "color": "#ec4899", "keywords": ["netflix", "spotify", "amazon prime", "cine", "teatro", "concierto"]},
+    {"name": "Ahorro", "category_type": CategoryTypeEnum.savings, "color": "#10b981", "keywords": []},
 ]
 
 

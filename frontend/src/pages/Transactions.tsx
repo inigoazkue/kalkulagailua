@@ -61,15 +61,23 @@ function CategoryDropdown({ tx }: { tx: Transaction }) {
   })
 
   if (tx.is_internal_transfer) {
+    const cat = tx.category_assignment?.category
     return (
-      <a
-        href={tx.transfer_id ? `/transfers?highlight=${tx.transfer_id}` : '/transfers'}
-        className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 transition-colors"
-        title="Ver transferencia interna"
-      >
-        <Link2 size={11} />
-        Interna
-      </a>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <a
+          href={tx.transfer_id ? `/transfers?highlight=${tx.transfer_id}` : '/transfers'}
+          className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 transition-colors"
+          title="Ver transferencia interna"
+        >
+          <Link2 size={11} />
+          Interna
+        </a>
+        {cat && (
+          <span className="text-xs px-1.5 py-0.5 rounded" style={{ backgroundColor: cat.color + '33', color: cat.color }}>
+            {cat.name}
+          </span>
+        )}
+      </div>
     )
   }
 

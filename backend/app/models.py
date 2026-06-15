@@ -29,6 +29,7 @@ class CategoryTypeEnum(str, enum.Enum):
     fixed_expense = "fixed_expense"
     variable_expense = "variable_expense"
     investment = "investment"
+    savings = "savings"
 
 
 class AssetTypeEnum(str, enum.Enum):

@@ -5,7 +5,7 @@ from sqlalchemy.orm import selectinload, aliased
 from app.database import get_db
 from app.models import InternalTransfer, Transaction, TransactionCategory, TransferBlocklist
 from app.schemas import InternalTransferOut, ValidateBulkIn
-from app.services.transfer_matcher import match_all_transfers
+from app.services.transfer_matcher import match_all_transfers, auto_categorize_savings_transfers
 
 router = APIRouter(prefix="/transfers", tags=["transfers"])
 
@@ -37,8 +37,9 @@ async def list_transfers(db: AsyncSession = Depends(get_db)):
 
 @router.post("/detect")
 async def detect_transfers(db: AsyncSession = Depends(get_db)):
-    """Force-detect internal transfers across all unlinked transactions."""
+    """Force-detect internal transfers and auto-categorize daily→savings ones."""
     created = await match_all_transfers(db)
+    await auto_categorize_savings_transfers(db)
     await db.commit()
     return {"created": created}
 

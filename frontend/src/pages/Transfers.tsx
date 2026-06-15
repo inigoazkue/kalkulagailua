@@ -1,8 +1,8 @@
 import { useRef, useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { fetchTransfers, deleteTransfer, detectTransfers, validateTransfers, fetchAccounts } from '../api/client'
-import { Trash2, ArrowLeftRight, Search, Check } from 'lucide-react'
+import { fetchTransfers, deleteTransfer, detectTransfers, validateTransfers, fetchAccounts, fetchCategories, assignCategory } from '../api/client'
+import { Trash2, ArrowLeftRight, Search, Check, ChevronDown } from 'lucide-react'
 import { clsx } from 'clsx'
 
 const fmt = (val: string) =>
@@ -10,6 +10,54 @@ const fmt = (val: string) =>
 
 const fmtDate = (d: string) =>
   new Date(d + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })
+
+function TxCategoryDropdown({ txId, current }: { txId: number; current: { id: number; name: string; color: string } | null }) {
+  const [open, setOpen] = useState(false)
+  const qc = useQueryClient()
+  const { data: categories = [] } = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
+
+  const mutation = useMutation({
+    mutationFn: (catId: number) => assignCategory(txId, catId, false),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['transfers'] })
+      qc.invalidateQueries({ queryKey: ['transactions'] })
+      setOpen(false)
+    },
+  })
+
+  return (
+    <div className="relative mt-1">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-slate-600 hover:bg-slate-500 transition-colors max-w-[160px]"
+      >
+        {current ? (
+          <>
+            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: current.color }} />
+            <span className="truncate">{current.name}</span>
+          </>
+        ) : (
+          <span className="text-slate-400">Sin categoría</span>
+        )}
+        <ChevronDown size={10} className="shrink-0 text-slate-400" />
+      </button>
+      {open && (
+        <div className="absolute z-20 mt-1 w-48 bg-slate-700 rounded-lg shadow-xl border border-slate-600 py-1 max-h-48 overflow-y-auto">
+          {categories.map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => mutation.mutate(cat.id)}
+              className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-600 flex items-center gap-2"
+            >
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
+              {cat.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function Transfers() {
   const [searchParams] = useSearchParams()
@@ -188,6 +236,10 @@ export default function Transfers() {
                     <td className="px-4 py-3 text-sm">
                       <div className="text-slate-300">{accountName(t.tx_out.account_id)}</div>
                       <div className="text-xs text-slate-500 truncate max-w-[200px]" title={t.tx_out.description}>{t.tx_out.description}</div>
+                      <TxCategoryDropdown
+                        txId={t.tx_out_id}
+                        current={t.tx_out.category_assignment?.category ?? null}
+                      />
                     </td>
                     <td className="px-4 py-3 text-sm">
                       <div className="text-slate-300">{accountName(t.tx_in.account_id)}</div>

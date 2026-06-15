@@ -1,7 +1,7 @@
 from datetime import timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
-from app.models import Transaction, InternalTransfer, TransferBlocklist
+from app.models import Transaction, InternalTransfer, TransferBlocklist, TransactionCategory, Account, AccountSubtypeEnum, Category, CategoryTypeEnum
 
 
 async def _load_state(db: AsyncSession) -> tuple[set[int], set[tuple[int, int]]]:
@@ -80,6 +80,73 @@ async def match_transfers(db: AsyncSession, new_tx_ids: list[int]) -> int:
 
     linked, blocklist = await _load_state(db)
     return await _match_txs(db, new_txs, linked, blocklist)
+
+
+async def auto_categorize_savings_transfers(db: AsyncSession) -> int:
+    """Assign 'Ahorro' category to uncategorized tx_out transactions
+    that flow from a daily account to a savings account.
+    Returns number of new assignments made."""
+    cat_result = await db.execute(
+        select(Category.id).where(Category.category_type == CategoryTypeEnum.savings)
+    )
+    ahorro_id = cat_result.scalar_one_or_none()
+    if not ahorro_id:
+        return 0
+
+    # Load all internal transfers with account info
+    transfers_result = await db.execute(
+        select(InternalTransfer.tx_out_id, InternalTransfer.tx_in_id,
+               Transaction.account_id.label("out_account_id"))
+        .join(Transaction, InternalTransfer.tx_out_id == Transaction.id)
+    )
+    transfers = transfers_result.all()
+    if not transfers:
+        return 0
+
+    all_account_ids = set()
+    for row in transfers:
+        all_account_ids.add(row.out_account_id)
+    # Also need tx_in account ids
+    tx_in_ids = [row.tx_in_id for row in transfers]
+    tx_in_accounts_result = await db.execute(
+        select(Transaction.id, Transaction.account_id).where(Transaction.id.in_(tx_in_ids))
+    )
+    tx_in_account = {row.id: row.account_id for row in tx_in_accounts_result.all()}
+    for acc_id in tx_in_account.values():
+        all_account_ids.add(acc_id)
+
+    accounts_result = await db.execute(
+        select(Account.id, Account.subtype).where(Account.id.in_(all_account_ids))
+    )
+    subtypes = {row.id: row.subtype for row in accounts_result.all()}
+
+    # Already categorized tx_out IDs
+    tx_out_ids = [row.tx_out_id for row in transfers]
+    cats_result = await db.execute(
+        select(TransactionCategory.transaction_id).where(
+            TransactionCategory.transaction_id.in_(tx_out_ids)
+        )
+    )
+    already_categorized = set(cats_result.scalars().all())
+
+    assigned = 0
+    for row in transfers:
+        if row.tx_out_id in already_categorized:
+            continue
+        in_account_id = tx_in_account.get(row.tx_in_id)
+        if (subtypes.get(row.out_account_id) == AccountSubtypeEnum.daily
+                and subtypes.get(in_account_id) == AccountSubtypeEnum.savings):
+            db.add(TransactionCategory(
+                transaction_id=row.tx_out_id,
+                category_id=ahorro_id,
+                is_manual=False,
+            ))
+            already_categorized.add(row.tx_out_id)
+            assigned += 1
+
+    if assigned:
+        await db.flush()
+    return assigned
 
 
 async def match_all_transfers(db: AsyncSession) -> int:

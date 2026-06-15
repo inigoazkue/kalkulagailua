@@ -93,6 +93,7 @@ export interface TransactionSummary {
   fixed_expenses: string
   variable_expenses: string
   investment: string
+  savings_transfer: string
   savings: string
 }
 
@@ -164,8 +165,8 @@ export const fetchSummary = (params: { start?: string; end?: string; account_id?
 export const updateAccountBalance = (id: number, data: { balance: number; balance_date: string }) =>
   api.put<Account>(`/accounts/${id}/balance`, data).then(r => r.data)
 
-export const assignCategory = (txId: number, categoryId: number) =>
-  api.put<Transaction>(`/transactions/${txId}/category`, { category_id: categoryId }).then(r => r.data)
+export const assignCategory = (txId: number, categoryId: number, learn = true) =>
+  api.put<Transaction>(`/transactions/${txId}/category${learn ? '' : '?learn=false'}`, { category_id: categoryId }).then(r => r.data)
 
 export const fetchAssets = () =>
   api.get<InvestmentAsset[]>('/investments/assets').then(r => r.data)
@@ -194,7 +195,7 @@ export interface AnalyticsCategory { id: number | null; name: string; color: str
 export interface AnalyticsData {
   daily: AnalyticsDay[]
   categories: AnalyticsCategory[]
-  summary: { income: number; fixed_expenses: number; variable_expenses: number; investment: number; net: number }
+  summary: { income: number; fixed_expenses: number; variable_expenses: number; investment: number; savings_transfer: number; net: number }
 }
 
 export const fetchAnalyticsData = (params: { start?: string; end?: string; account_id?: number; savings_only?: boolean }) =>

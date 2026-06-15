@@ -12,7 +12,7 @@ from app.parsers.myinvestor import MyInvestorParser
 from app.parsers.trade_republic import TradeRepublicParser
 from app.parsers.bit2me import Bit2meParser
 from app.services.categorizer import auto_categorize
-from app.services.transfer_matcher import match_transfers
+from app.services.transfer_matcher import match_transfers, auto_categorize_savings_transfers
 
 
 def _subtract_months(d: date, months: int) -> date:
@@ -117,6 +117,7 @@ async def import_file(
         imported += 1
 
     await match_transfers(db, new_tx_ids)
+    await auto_categorize_savings_transfers(db)
     await db.commit()
 
     last_date = max((pt.date for pt in parsed), default=None) if parsed else None

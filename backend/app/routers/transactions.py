@@ -18,7 +18,7 @@ _BANKING_STOPWORDS = frozenset({
     'adeudo', 'concepto', 'tarjeta', 'cuenta', 'movimiento', 'operacion',
     'domiciliado', 'domiciliacion', 'para', 'desde', 'hasta', 'euro', 'euros',
     'importe', 'fecha', 'referencia', 'enviado', 'recibido', 'realizado',
-    'efectuado', 'banco', 'entidad', 'oficina', 'numero', 'numero',
+    'efectuado', 'banco', 'entidad', 'oficina', 'numero', 'numero', 'ahorro',
 })
 
 
@@ -103,9 +103,7 @@ async def get_analytics_data(
             Transaction.account_id.in_(select(Account.id).where(Account.include_in_savings == True))
         )
     filters.append(
-        ~Transaction.id.in_(
-            select(InternalTransfer.tx_out_id).union(select(InternalTransfer.tx_in_id))
-        )
+        ~Transaction.id.in_(select(InternalTransfer.tx_in_id))
     )
 
     # Daily income / expenses using GREATEST to split positive/negative
@@ -157,6 +155,7 @@ async def get_analytics_data(
     fixed_exp = sum(c["total"] for c in categories if c["category_type"] == "fixed_expense")
     var_exp = sum(c["total"] for c in categories if c["category_type"] == "variable_expense")
     invest = sum(c["total"] for c in categories if c["category_type"] == "investment")
+    savings_t = sum(c["total"] for c in categories if c["category_type"] == "savings")
 
     return {
         "daily": daily,
@@ -166,7 +165,8 @@ async def get_analytics_data(
             "fixed_expenses": fixed_exp,
             "variable_expenses": var_exp,
             "investment": invest,
-            "net": income - fixed_exp - var_exp - invest,
+            "savings_transfer": savings_t,
+            "net": income - fixed_exp - var_exp - invest - savings_t,
         },
     }
 
@@ -203,7 +203,7 @@ async def list_transactions(
     if metric == 'income':
         # All positive-amount transactions
         query = query.where(Transaction.amount > 0)
-    elif metric in ('fixed_expense', 'investment'):
+    elif metric in ('fixed_expense', 'investment', 'savings'):
         ct = CategoryTypeEnum(metric)
         query = (query
             .join(TransactionCategory, Transaction.id == TransactionCategory.transaction_id)
@@ -285,9 +285,7 @@ async def get_summary(
             Transaction.account_id.in_(select(Account.id).where(Account.include_in_savings == True))
         )
     filters.append(
-        ~Transaction.id.in_(
-            select(InternalTransfer.tx_out_id).union(select(InternalTransfer.tx_in_id))
-        )
+        ~Transaction.id.in_(select(InternalTransfer.tx_in_id))
     )
 
     result = await db.execute(
@@ -303,6 +301,7 @@ async def get_summary(
     fixed_expenses = Decimal("0")
     variable_expenses = Decimal("0")
     investment = Decimal("0")
+    savings_transfer = Decimal("0")
 
     for tx in transactions:
         if tx.category_assignment is None:
@@ -323,13 +322,16 @@ async def get_summary(
             variable_expenses += abs(amount)
         elif cat_type == CategoryTypeEnum.investment:
             investment += abs(amount)
+        elif cat_type == CategoryTypeEnum.savings:
+            savings_transfer += abs(amount)
 
-    savings = income - fixed_expenses - variable_expenses - investment
+    savings = income - fixed_expenses - variable_expenses - investment - savings_transfer
     return TransactionSummaryOut(
         income=income,
         fixed_expenses=fixed_expenses,
         variable_expenses=variable_expenses,
         investment=investment,
+        savings_transfer=savings_transfer,
         savings=savings,
     )
 
@@ -338,6 +340,7 @@ async def get_summary(
 async def assign_category(
     transaction_id: int,
     body: AssignCategoryIn,
+    learn: bool = Query(True),
     db: AsyncSession = Depends(get_db),
 ):
     tx_result = await db.execute(
@@ -370,7 +373,8 @@ async def assign_category(
     await db.commit()
     await db.refresh(tx)
 
-    await _auto_learn(db, transaction_id, tx.description, body.category_id)
+    if learn:
+        await _auto_learn(db, transaction_id, tx.description, body.category_id)
 
     tx_result2 = await db.execute(
         select(Transaction)

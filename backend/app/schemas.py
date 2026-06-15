@@ -121,6 +121,7 @@ class TransactionSummaryOut(BaseModel):
     fixed_expenses: Decimal
     variable_expenses: Decimal
     investment: Decimal
+    savings_transfer: Decimal
     savings: Decimal
 
 

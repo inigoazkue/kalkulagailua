@@ -97,6 +97,7 @@ export default function Analytics() {
     { label: 'Gastos fijos', value: summary.fixed_expenses, color: 'text-red-400', metric: 'fixed_expense' },
     { label: 'Gastos variables', value: summary.variable_expenses, color: 'text-orange-400', metric: 'variable_expense' },
     { label: 'Inversión', value: summary.investment, color: 'text-purple-400', metric: 'investment' },
+    { label: 'Ahorro', value: summary.savings_transfer ?? 0, color: 'text-emerald-400', metric: 'savings' },
     { label: 'Neto', value: summary.net, color: summary.net >= 0 ? 'text-blue-400' : 'text-red-400', metric: '' },
   ]
 
@@ -183,7 +184,7 @@ export default function Analytics() {
           </div>
 
           {/* Metric cards — clickable, navigate with exact analytics logic */}
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
             {metrics.map(({ label, value, color, metric }) => (
               <button key={label}
                 onClick={() => metric && period && goMetric(metric)}
