@@ -2,9 +2,9 @@ import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, Tooltip,
-  CartesianGrid, ResponsiveContainer, Legend,
+  CartesianGrid, ResponsiveContainer, Legend, ReferenceLine,
 } from 'recharts'
-import { fetchAccounts, fetchSummary, fetchAnalyticsData, fetchPayrollDates, Account } from '../api/client'
+import { fetchAccounts, fetchSummary, fetchPayrollDates, Account } from '../api/client'
 
 type PeriodType = 'payroll' | 'month' | 'quarter' | 'year'
 
@@ -124,12 +124,28 @@ export default function Dashboard() {
   const totalSavings = savingsAccounts.reduce((s, a) => s + Number(a.current_balance ?? 0), 0)
   const missingBalances = savingsAccounts.filter(a => a.current_balance === null)
 
-  // Pie chart: analytics-data filtered to savings accounts, server-side
-  const { data: analyticsData } = useQuery({
-    queryKey: ['analytics-data', 'savings', activePeriod.start, activePeriod.end],
-    queryFn: () => fetchAnalyticsData({ start: activePeriod.start, end: activePeriod.end, savings_only: true }),
+  // Payroll income distribution pie
+  const payrollAccount = accounts.find(a => a.is_payroll_account) ?? null
+  const { data: payrollSummary } = useQuery({
+    queryKey: ['summary', activePeriod.start, activePeriod.end, payrollAccount?.id],
+    queryFn: () => fetchSummary({ start: activePeriod.start, end: activePeriod.end, account_id: payrollAccount!.id }),
+    enabled: !!payrollAccount,
   })
-  const pieData = (analyticsData?.categories ?? []).filter(c => c.total > 0)
+
+  const payrollIncome = Number(payrollSummary?.income ?? 0)
+  const incomePieData = useMemo(() => {
+    if (!payrollSummary || payrollIncome <= 0) return []
+    const fixed = Number(payrollSummary.fixed_expenses)
+    const variable = Number(payrollSummary.variable_expenses)
+    const savingsInv = Number(payrollSummary.savings_transfer) + Number(payrollSummary.investment)
+    const libre = payrollIncome - fixed - variable - savingsInv
+    return [
+      { name: 'Gastos fijos', value: fixed, color: '#ef4444' },
+      { name: 'Gastos variables', value: variable, color: '#f97316' },
+      { name: 'Ahorro / Inversión', value: savingsInv, color: '#10b981' },
+      ...(libre > 0 ? [{ name: 'Libre', value: libre, color: '#475569' }] : []),
+    ].filter(d => d.value > 0)
+  }, [payrollSummary, payrollIncome])
 
   // Trend: last 6 calendar months, savings accounts only
   const monthRanges = Array.from({ length: 6 }, (_, i) => getCalendarMonthRange(5 - i))
@@ -142,7 +158,13 @@ export default function Dashboard() {
 
   const trendData = monthRanges.map((r, i) => {
     const s = [m0, m1, m2, m3, m4, m5][i]
-    return { name: r.label, Ahorro: s ? Number(s.savings) : 0, Ingresos: s ? Number(s.income) : 0 }
+    return {
+      name: r.label,
+      Ingresos: s ? Number(s.income) : 0,
+      Gastos: s ? -(Number(s.fixed_expenses) + Number(s.variable_expenses)) : 0,
+      Inversión: s ? -Number(s.investment) : 0,
+      'Ahorro neto': s ? Number(s.savings) : 0,
+    }
   })
 
   const periodLabel = period
@@ -195,26 +217,50 @@ export default function Dashboard() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Income distribution pie — payroll account */}
         <div className="bg-slate-800 rounded-xl p-5">
-          <h3 className="text-sm font-medium text-slate-300 mb-1">Gasto por categoría</h3>
-          <p className="text-xs text-slate-500 mb-3">Cuentas de ahorro total · período seleccionado</p>
-          {pieData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={260}>
-              <PieChart>
-                <Pie data={pieData} dataKey="total" nameKey="name" cx="50%" cy="50%" outerRadius={90}
-                  label={({ percent }) => percent > 0.04 ? `${(percent * 100).toFixed(0)}%` : ''}
-                  labelLine={false}>
-                  {pieData.map((entry, index) => <Cell key={index} fill={entry.color} />)}
-                </Pie>
-                <Tooltip formatter={(v: number) => fmt(v)} contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: 12 }} />
-                <Legend formatter={v => <span style={{ color: '#94a3b8', fontSize: 12 }}>{v}</span>} />
-              </PieChart>
-            </ResponsiveContainer>
+          <h3 className="text-sm font-medium text-slate-300 mb-1">Distribución de ingresos</h3>
+          <p className="text-xs text-slate-500 mb-3">
+            {payrollAccount ? `${payrollAccount.name} · período seleccionado` : 'Marca una cuenta como "Cuenta nómina" en Ajustes → Cuentas'}
+          </p>
+          {payrollAccount && incomePieData.length > 0 ? (
+            <>
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie
+                    data={incomePieData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={85}
+                    label={({ percent }) => percent > 0.04 ? `${(percent * 100).toFixed(0)}%` : ''}
+                    labelLine={false}
+                  >
+                    {incomePieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip
+                    formatter={(v: number, name: string) => [
+                      `${fmt(v)}${payrollIncome > 0 ? ` · ${((v / payrollIncome) * 100).toFixed(1)}% de ingresos` : ''}`,
+                      name,
+                    ]}
+                    contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: 12 }}
+                  />
+                  <Legend formatter={v => <span style={{ color: '#94a3b8', fontSize: 12 }}>{v}</span>} />
+                </PieChart>
+              </ResponsiveContainer>
+              <p className="text-center text-xs text-slate-500 mt-1">
+                Ingresos totales: <span className="text-green-400 font-medium">{fmt(payrollIncome)}</span>
+              </p>
+            </>
           ) : (
-            <div className="flex items-center justify-center h-48 text-slate-500 text-sm">Sin datos en este período</div>
+            <div className="flex items-center justify-center h-48 text-slate-500 text-sm">
+              {!payrollAccount ? 'Sin cuenta nómina configurada' : 'Sin datos en este período'}
+            </div>
           )}
         </div>
 
+        {/* 6-month savings trend */}
         <div className="bg-slate-800 rounded-xl p-5">
           <h3 className="text-sm font-medium text-slate-300 mb-1">Tendencia (6 meses)</h3>
           <p className="text-xs text-slate-500 mb-3">Cuentas de ahorro total · meses naturales</p>
@@ -223,10 +269,16 @@ export default function Dashboard() {
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
               <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 12 }} />
               <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} tickFormatter={v => `${v}€`} />
-              <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px' }} formatter={(v: number) => fmt(v)} />
-              <Legend />
-              <Line type="monotone" dataKey="Ingresos" stroke="#22c55e" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="Ahorro" stroke="#3b82f6" strokeWidth={2} dot={false} />
+              <ReferenceLine y={0} stroke="#475569" strokeWidth={1} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: 12 }}
+                formatter={(v: number) => fmt(v)}
+              />
+              <Legend formatter={v => <span style={{ color: '#94a3b8', fontSize: 12 }}>{v}</span>} />
+              <Line type="monotone" dataKey="Ingresos" stroke="#22c55e" strokeWidth={1.5} strokeDasharray="5 4" dot={false} />
+              <Line type="monotone" dataKey="Gastos" stroke="#ef4444" strokeWidth={1.5} strokeDasharray="5 4" dot={false} />
+              <Line type="monotone" dataKey="Inversión" stroke="#a855f7" strokeWidth={1.5} strokeDasharray="5 4" dot={false} />
+              <Line type="monotone" dataKey="Ahorro neto" stroke="#3b82f6" strokeWidth={2.5} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
