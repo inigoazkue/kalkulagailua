@@ -51,7 +51,7 @@ export default function Analytics() {
     enabled: !!account && !!period,
   })
 
-  const summary = analyticsData?.summary ?? { income: 0, fixed_expenses: 0, variable_expenses: 0, investment: 0, net: 0 }
+  const summary = analyticsData?.summary ?? { income: 0, fixed_expenses: 0, variable_expenses: 0, investment: 0, savings_transfer: 0, net: 0 }
   const barData = analyticsData?.daily ?? []
   const pieData = analyticsData?.categories ?? []
   const barInterval = barData.length > 20 ? Math.floor(barData.length / 10) : 0
