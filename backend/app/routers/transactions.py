@@ -248,18 +248,19 @@ async def list_transactions(
     if items:
         item_ids = [tx.id for tx in items]
         transfer_result = await db.execute(
-            select(InternalTransfer.tx_out_id, InternalTransfer.tx_in_id)
+            select(InternalTransfer.id, InternalTransfer.tx_out_id, InternalTransfer.tx_in_id)
             .where(or_(
                 InternalTransfer.tx_out_id.in_(item_ids),
                 InternalTransfer.tx_in_id.in_(item_ids),
             ))
         )
-        transfer_ids: set[int] = set()
+        tx_to_transfer: dict[int, int] = {}
         for row in transfer_result.all():
-            transfer_ids.add(row.tx_out_id)
-            transfer_ids.add(row.tx_in_id)
+            tx_to_transfer[row.tx_out_id] = row.id
+            tx_to_transfer[row.tx_in_id] = row.id
         for tx in items:
-            tx.is_internal_transfer = tx.id in transfer_ids
+            tx.is_internal_transfer = tx.id in tx_to_transfer
+            tx.transfer_id = tx_to_transfer.get(tx.id)
 
     return TransactionListOut(items=items, total=total, page=page, limit=limit)
 

@@ -174,6 +174,17 @@ class InternalTransfer(Base):
     tx_in: Mapped["Transaction"] = relationship("Transaction", foreign_keys=[tx_in_id])
 
 
+class TransferBlocklist(Base):
+    __tablename__ = "transfer_blocklist"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    tx_out_id: Mapped[int] = mapped_column(Integer, ForeignKey("transactions.id"), nullable=False)
+    tx_in_id: Mapped[int] = mapped_column(Integer, ForeignKey("transactions.id"), nullable=False)
+    blocked_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+
+    __table_args__ = (UniqueConstraint("tx_out_id", "tx_in_id", name="uq_blocklist_pair"),)
+
+
 class PriceCache(Base):
     __tablename__ = "price_cache"
 

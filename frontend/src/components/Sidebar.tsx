@@ -6,7 +6,7 @@ const mainNav = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/analytics', label: 'Analítica', icon: BarChart2 },
   { to: '/transactions', label: 'Transacciones', icon: List },
-  { to: '/transfers', label: 'Transferencias', icon: ArrowLeftRight },
+  { to: '/transfers', label: 'Trans. internas', icon: ArrowLeftRight },
   { to: '/investments', label: 'Inversiones', icon: TrendingUp },
 ]
 

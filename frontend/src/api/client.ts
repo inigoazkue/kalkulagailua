@@ -78,6 +78,7 @@ export interface Transaction {
   imported_at: string
   category_assignment: TransactionCategoryAssignment | null
   is_internal_transfer: boolean
+  transfer_id: number | null
 }
 
 export interface TransactionList {
@@ -203,6 +204,9 @@ export const fetchTransfers = () =>
 
 export const deleteTransfer = (id: number) =>
   api.delete(`/transfers/${id}`)
+
+export const detectTransfers = () =>
+  api.post<{ created: number }>('/transfers/detect').then(r => r.data)
 
 export const importFile = (accountId: number, file: File) => {
   const form = new FormData()

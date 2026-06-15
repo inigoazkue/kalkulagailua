@@ -104,6 +104,7 @@ class TransactionOut(BaseModel):
     imported_at: datetime
     category_assignment: Optional[TransactionCategoryOut] = None
     is_internal_transfer: bool = False
+    transfer_id: Optional[int] = None
 
     model_config = {"from_attributes": True}
 

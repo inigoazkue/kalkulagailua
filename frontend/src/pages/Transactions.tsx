@@ -11,6 +11,8 @@ import {
   fetchTransactions, fetchCategories, fetchAccounts, fetchPayrollDates,
   assignCategory, Transaction,
 } from '../api/client'
+import { useNavigate } from 'react-router-dom'
+import { Link2 } from 'lucide-react'
 import { clsx } from 'clsx'
 import {
   PeriodType, PERIOD_OPTIONS, buildPayrollCycles, computePeriod,
@@ -60,7 +62,16 @@ function CategoryDropdown({ tx }: { tx: Transaction }) {
   })
 
   if (tx.is_internal_transfer) {
-    return <span className="text-xs px-2 py-1 rounded-md bg-sky-500/20 text-sky-300">↔ Interna</span>
+    return (
+      <a
+        href={tx.transfer_id ? `/transfers?highlight=${tx.transfer_id}` : '/transfers'}
+        className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-sky-500/20 text-sky-300 hover:bg-sky-500/30 transition-colors"
+        title="Ver transferencia interna"
+      >
+        <Link2 size={11} />
+        Interna
+      </a>
+    )
   }
 
   const current = tx.category_assignment?.category

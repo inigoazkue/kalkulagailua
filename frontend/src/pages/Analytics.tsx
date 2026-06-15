@@ -172,7 +172,12 @@ export default function Analytics() {
                   accountIdx === i ? 'bg-slate-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
                 )}>
                 <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: a.color }} />
-                {a.name}
+                <div className="text-left">
+                  <div>{a.name}</div>
+                  {a.current_balance !== null && (
+                    <div className="text-xs font-normal text-slate-400">{fmt(Number(a.current_balance))}</div>
+                  )}
+                </div>
               </button>
             ))}
           </div>
