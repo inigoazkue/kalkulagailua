@@ -5,6 +5,28 @@ from decimal import Decimal
 from typing import Optional
 
 
+def fix_mojibake(text: str) -> str:
+    """Corrige texto UTF-8 decodificado incorrectamente una o dos veces.
+
+    Algunos exportadores (ej. MyInvestor) generan CSVs donde los caracteres
+    acentuados quedan re-codificados: 'ó' (UTF-8: 0xC3 0xB3) se reinterpreta
+    como Latin-1 ('Ã³'), y a veces ese resultado se vuelve a codificar en
+    UTF-8 una segunda vez ('ÃÂ³'). Revertimos aplicando encode('latin-1') +
+    decode('utf-8') hasta 2 veces; si el texto no es mojibake, el encode/decode
+    falla de inmediato (UnicodeError) y se devuelve el texto original intacto.
+    """
+    fixed = text
+    for _ in range(2):
+        try:
+            candidate = fixed.encode("latin-1").decode("utf-8")
+        except (UnicodeDecodeError, UnicodeEncodeError):
+            break
+        if candidate == fixed:
+            break
+        fixed = candidate
+    return fixed
+
+
 @dataclass
 class ParsedTransaction:
     date: date

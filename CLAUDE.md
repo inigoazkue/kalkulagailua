@@ -271,3 +271,4 @@ Devuelve `{daily, categories, summary}`. El bucket "Sin categoría" tiene `id: n
 - El hash de deduplicación usa ocurrencia-1 = fórmula antigua (retrocompatible con DB existente)
 - `is_internal_transfer` y `transfer_id` se monkey-patchean en los objetos SQLAlchemy antes de serializar con Pydantic
 - La pantalla Trans. internas usa `?learn=false` en assign_category para no contaminar keywords con descripciones de transferencias
+- Los CSV de MyInvestor a veces vienen con mojibake (acentos UTF-8 re-leídos como Latin-1 antes de exportar, ej. "ó" → "Ã³"). `parsers/base.py` expone `fix_mojibake(text)` (encode latin-1 + decode utf-8, hasta 2 pasadas, no-op si el texto ya es correcto) y se aplica a la descripción en `parsers/myinvestor.py`

@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 import pandas as pd
-from app.parsers.base import BaseParser, ParsedTransaction
+from app.parsers.base import BaseParser, ParsedTransaction, fix_mojibake
 
 
 def _read_csv(file_bytes: bytes, header_row) -> pd.DataFrame:
@@ -74,7 +74,7 @@ class MyInvestorParser(BaseParser):
             except Exception:
                 continue
 
-            description = str(raw_desc).strip()
+            description = fix_mojibake(str(raw_desc).strip())
             if not description:
                 continue
 
