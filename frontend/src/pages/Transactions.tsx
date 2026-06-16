@@ -19,6 +19,7 @@ import {
 } from '../utils/periods'
 import PrivacyToggle from '../components/PrivacyToggle'
 import { Sensitive } from '../components/Sensitive'
+import { fmtDateEs } from '../utils/format'
 
 type TxPeriodType = 'all' | PeriodType
 
@@ -234,7 +235,7 @@ export default function Transactions() {
   const columns = [
     col.accessor('date', {
       header: 'Fecha',
-      cell: info => info.getValue(),
+      cell: info => fmtDateEs(info.getValue()),
     }),
     col.accessor('description', {
       header: 'Descripción',
@@ -347,9 +348,7 @@ export default function Transactions() {
           )}
           {period && (
             <span className="text-xs text-slate-500 ml-auto">
-              {new Date(period.start + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'short' })}
-              {' – '}
-              {new Date(period.end + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })}
+              {fmtDateEs(period.start)} – {fmtDateEs(period.end)}
             </span>
           )}
         </div>

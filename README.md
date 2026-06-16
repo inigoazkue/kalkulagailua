@@ -6,10 +6,9 @@ App web de finanzas personales auto-hospedada. Importas tus extractos bancarios 
 
 ### Importación de extractos
 - Soporta CaixaBank, MyInvestor, Trade Republic y Bit2me en CSV/XLSX
-- Deduplicación automática por hash: re-importar el mismo fichero es seguro
-- Corte inteligente: ignora filas más antiguas de 2 meses antes del último registro, para no reprocesar histórico innecesariamente
+- Deduplicación automática por hash, fila a fila contra todo el histórico: re-importar el mismo fichero es seguro, y también puedes importar extractos de años anteriores sin perder ni duplicar movimientos
 - Actualiza el saldo de la cuenta automáticamente cuando el CSV lo incluye
-- Muestra cuántas transacciones nuevas se importaron, cuántas eran duplicados y cuántas se descartaron por antigüedad
+- Muestra cuántas transacciones nuevas se importaron y cuántas eran duplicados
 
 ### Categorización
 - **Auto-categorización en importación**: cada transacción nueva se compara contra las palabras clave de cada categoría (búsqueda ilike)

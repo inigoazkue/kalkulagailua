@@ -137,7 +137,6 @@ class AccountBalanceUpdate(BaseModel):
 class ImportResult(BaseModel):
     imported: int
     duplicates: int
-    skipped_old: int = 0
     last_transaction_date: Optional[date] = None
     balance_updated: bool = False
 

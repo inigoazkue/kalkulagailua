@@ -118,7 +118,6 @@ export interface InvestmentPosition {
 export interface ImportResult {
   imported: number
   duplicates: number
-  skipped_old: number
   last_transaction_date: string | null
   balance_updated: boolean
 }

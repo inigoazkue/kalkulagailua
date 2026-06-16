@@ -1,5 +1,10 @@
 # Changelog
 
+### v1.2.1
+- **Fix saldo manual (Importar)**: el campo "Saldo disponible" usaba un input numérico nativo que no admitía el punto de miles español, causando saldos guardados ~100x más pequeños de lo real; ahora parsea correctamente el formato español (punto de miles, coma decimal)
+- **Fechas en formato DD/MM/AAAA** en toda la app (Dashboard, Analítica, Transacciones, Cuentas, Trans. internas, Importar); antes la tabla de Transacciones mostraba la fecha cruda en ISO
+- **Importación sin corte de antigüedad**: se elimina el "smart cutoff" que descartaba silenciosamente filas anteriores a 2 meses antes del último registro; ahora la deduplicación es por hash fila a fila contra todo el histórico, sin límite de antigüedad — permite importar extractos de años anteriores sin perder movimientos
+
 ### v1.2.0
 - **Modo privacidad**: icono de ojo (cerrado por defecto) que difumina todos los importes y gráficos de la app — junto a "Ahorro total" en el Dashboard y en la esquina superior derecha del resto de páginas (Analítica, Transacciones, Cuentas, Inversiones, Trans. internas, Importar)
 

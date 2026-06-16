@@ -5,6 +5,7 @@ import { Plus, Pencil, Trash2, X, Wallet } from 'lucide-react'
 import { clsx } from 'clsx'
 import PrivacyToggle from '../components/PrivacyToggle'
 import { Sensitive } from '../components/Sensitive'
+import { fmtDateEs } from '../utils/format'
 
 const BANK_LABELS: Record<BankId, string> = {
   caixabank: 'CaixaBank',
@@ -173,7 +174,7 @@ function AccountCard({ account }: { account: Account }) {
           )}
           {account.last_transaction_date && (
             <p className="text-xs text-slate-600">
-              Última tx: {new Date(account.last_transaction_date + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })}
+              Última tx: {fmtDateEs(account.last_transaction_date)}
             </p>
           )}
         </div>

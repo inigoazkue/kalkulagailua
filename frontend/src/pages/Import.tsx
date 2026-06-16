@@ -6,6 +6,7 @@ import { clsx } from 'clsx'
 import { Link } from 'react-router-dom'
 import PrivacyToggle from '../components/PrivacyToggle'
 import { Sensitive } from '../components/Sensitive'
+import { fmtDateEs, parseEsNumber, fmtEsNumber } from '../utils/format'
 
 const BANK_LABELS: Record<BankId, string> = {
   caixabank: 'CaixaBank',
@@ -31,7 +32,7 @@ const fmtBalance = (val: string | number | null) =>
 
 function BalanceSection({ account, highlightEmpty }: { account: Account; highlightEmpty?: boolean }) {
   const [editing, setEditing] = useState(highlightEmpty && account.current_balance === null)
-  const [balanceVal, setBalanceVal] = useState(account.current_balance != null ? String(account.current_balance) : '')
+  const [balanceVal, setBalanceVal] = useState(account.current_balance != null ? fmtEsNumber(Number(account.current_balance)) : '')
   const [dateVal, setDateVal] = useState(account.balance_date ?? '')
   const qc = useQueryClient()
 
@@ -40,9 +41,12 @@ function BalanceSection({ account, highlightEmpty }: { account: Account; highlig
     if (highlightEmpty && account.current_balance === null) setEditing(true)
   }, [highlightEmpty, account.current_balance])
 
+  const parsedBalance = parseEsNumber(balanceVal)
+  const balanceIsValid = balanceVal.trim() !== '' && !Number.isNaN(parsedBalance)
+
   const mutation = useMutation({
     mutationFn: () => updateAccountBalance(account.id, {
-      balance: Number(balanceVal.replace(',', '.')),
+      balance: parsedBalance,
       balance_date: dateVal,
     }),
     onSuccess: () => {
@@ -69,7 +73,7 @@ function BalanceSection({ account, highlightEmpty }: { account: Account; highlig
                 <span className="text-sm font-semibold text-white"><Sensitive>{fmtBalance(account.current_balance)}</Sensitive></span>
                 {account.balance_date && (
                   <span className="text-xs text-slate-500">
-                    {new Date(account.balance_date + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {fmtDateEs(account.balance_date)}
                   </span>
                 )}
               </div>
@@ -78,7 +82,7 @@ function BalanceSection({ account, highlightEmpty }: { account: Account; highlig
             )}
           </div>
           <button onClick={() => {
-            setBalanceVal(account.current_balance != null ? String(account.current_balance) : '')
+            setBalanceVal(account.current_balance != null ? fmtEsNumber(Number(account.current_balance)) : '')
             setDateVal(account.balance_date ?? '')
             setEditing(true)
           }} className="p-1 text-slate-400 hover:text-white rounded transition-colors shrink-0">
@@ -90,11 +94,11 @@ function BalanceSection({ account, highlightEmpty }: { account: Account; highlig
           <span className="text-xs text-slate-400">Saldo disponible</span>
           <div className="flex items-center gap-2 flex-wrap">
             <input
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={balanceVal}
               onChange={e => setBalanceVal(e.target.value)}
-              placeholder="1234.56"
+              placeholder="1.234,56"
               className="w-32 bg-slate-600 text-white text-sm rounded px-2 py-1 border border-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
             <input
@@ -105,7 +109,7 @@ function BalanceSection({ account, highlightEmpty }: { account: Account; highlig
             />
             <button
               onClick={() => mutation.mutate()}
-              disabled={!balanceVal || !dateVal || mutation.isPending}
+              disabled={!balanceIsValid || !dateVal || mutation.isPending}
               className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded transition-colors"
             >
               <Save size={12} /> Guardar
@@ -116,6 +120,9 @@ function BalanceSection({ account, highlightEmpty }: { account: Account; highlig
               </button>
             )}
           </div>
+          {!balanceIsValid && balanceVal.trim() !== '' && (
+            <p className="text-xs text-amber-400">Formato español: punto de miles, coma decimal (ej. 1.234,56)</p>
+          )}
           {mutation.isError && <p className="text-xs text-red-400">Error al guardar</p>}
         </div>
       )}
@@ -172,7 +179,7 @@ function AccountUploadBox({ account }: { account: Account }) {
           <span className="ml-2 text-xs text-slate-500">{SUBTYPE_LABELS[account.subtype]}</span>
           {account.last_transaction_date && (
             <span className="ml-2 text-xs text-slate-600">
-              Última importación: {new Date(account.last_transaction_date + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })}
+              Última importación: {fmtDateEs(account.last_transaction_date)}
             </span>
           )}
         </div>
@@ -206,14 +213,13 @@ function AccountUploadBox({ account }: { account: Account }) {
             <CheckCircle size={14} className="text-green-400 shrink-0 mt-0.5" />
             <span className="text-green-400 font-medium">
               {uploadState.result.imported} importadas · {uploadState.result.duplicates} duplicadas
-              {uploadState.result.skipped_old > 0 && ` · ${uploadState.result.skipped_old} anteriores omitidas`}
             </span>
           </div>
           {!uploadState.result.balance_updated && uploadState.result.last_transaction_date && (
             <div className="text-xs text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded-lg px-3 py-2">
               El extracto no incluye el saldo. Introdúcelo arriba a fecha{' '}
               <span className="font-medium">
-                {new Date(uploadState.result.last_transaction_date + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })}
+                {fmtDateEs(uploadState.result.last_transaction_date)}
               </span>
               .
             </div>

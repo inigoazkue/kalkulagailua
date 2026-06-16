@@ -6,12 +6,12 @@ import { Trash2, ArrowLeftRight, Search, Check, ChevronDown } from 'lucide-react
 import { clsx } from 'clsx'
 import PrivacyToggle from '../components/PrivacyToggle'
 import { Sensitive } from '../components/Sensitive'
+import { fmtDateEs } from '../utils/format'
 
 const fmt = (val: string) =>
   Number(val).toLocaleString('es', { style: 'currency', currency: 'EUR' })
 
-const fmtDate = (d: string) =>
-  new Date(d + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })
+const fmtDate = fmtDateEs
 
 const EXPENSE_TYPE_LABELS: Record<string, string> = {
   fixed_expense: 'Gastos fijos',

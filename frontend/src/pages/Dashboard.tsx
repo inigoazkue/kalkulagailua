@@ -7,6 +7,7 @@ import {
 import { fetchAccounts, fetchSummary, fetchPayrollDates, Account } from '../api/client'
 import PrivacyToggle from '../components/PrivacyToggle'
 import { Sensitive, SensitiveBlock } from '../components/Sensitive'
+import { fmtDateEs } from '../utils/format'
 
 type PeriodType = 'payroll' | 'month' | 'quarter' | 'year'
 
@@ -170,7 +171,7 @@ export default function Dashboard() {
   })
 
   const periodLabel = period
-    ? `${new Date(activePeriod.start + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'short' })} – ${new Date(activePeriod.end + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })}`
+    ? `${fmtDateEs(activePeriod.start)} – ${fmtDateEs(activePeriod.end)}`
     : ''
 
   return (

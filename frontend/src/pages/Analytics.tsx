@@ -13,9 +13,12 @@ import {
 } from '../utils/periods'
 import PrivacyToggle from '../components/PrivacyToggle'
 import { Sensitive, SensitiveBlock } from '../components/Sensitive'
+import { fmtDateEs } from '../utils/format'
 
 const fmt = (v: number) => v.toLocaleString('es', { style: 'currency', currency: 'EUR' })
-const fmtDate = (s: string) => new Date(s + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'short' })
+const fmtDate = fmtDateEs
+// Versión compacta (sin año) solo para los ticks del eje X del gráfico de barras — evita solapamiento
+const fmtTick = (s: string) => fmtDateEs(s).slice(0, 5)
 
 export default function Analytics() {
   const now = useMemo(() => new Date(), [])
@@ -220,7 +223,7 @@ export default function Analytics() {
                       onClick={handleBarClick} style={{ cursor: 'pointer' }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                       <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 10 }}
-                        tickFormatter={fmtDate} interval={barInterval} />
+                        tickFormatter={fmtTick} interval={barInterval} />
                       <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={v => `${v}€`} width={60} />
                       <Tooltip
                         contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: 12 }}

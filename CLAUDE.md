@@ -150,7 +150,7 @@ Requisito de instalación: la app debe estar en HTTPS.
 - Agrupado por banco
 - Por cada cuenta: fecha de última importación, saldo editable (lápiz → form inline)
 - Zona de drop/click para CSV/XLSX
-- Tras importar: muestra `imported`, `duplicates`, `skipped_old`, aviso si hay que actualizar saldo manualmente
+- Tras importar: muestra `imported`, `duplicates`, aviso si hay que actualizar saldo manualmente
 
 ### Categorías (`/categories`)
 - CRUD completo: nombre, tipo, color (paleta de 12 colores), keywords (coma-separados)
@@ -175,15 +175,16 @@ Requisito de instalación: la app debe estar en HTTPS.
 - `DELETE /accounts/{id}` — eliminar
 
 ### Importación (`POST /imports/{account_id}`)
-Devuelve `{ imported, duplicates, skipped_old, last_transaction_date, balance_updated }`.
+Devuelve `{ imported, duplicates, last_transaction_date, balance_updated }`.
 Flujo:
 1. Parsear CSV/XLSX
-2. Smart cutoff: si hay historial, descartar filas anteriores a `last_recorded - 2 meses`
-3. Deduplicación por hash
-4. Para cada TX nueva: insertar + `auto_categorize(description)` via keywords
-5. `match_transfers(db, new_tx_ids)` — detectar pares intra
-6. `auto_categorize_savings_transfers(db)` — asignar Ahorro a tx_out de daily→savings
-7. Commit
+2. Deduplicación por hash — se compara fila a fila contra todo el histórico de la cuenta, sin descartar nada por antigüedad (permite reimportar/backfillear históricos de años anteriores sin perder movimientos)
+3. Para cada TX nueva: insertar + `auto_categorize(description)` via keywords
+4. `match_transfers(db, new_tx_ids)` — detectar pares intra
+5. `auto_categorize_savings_transfers(db)` — asignar Ahorro a tx_out de daily→savings
+6. Commit
+
+> Hasta v1.2.x existía un "smart cutoff" que descartaba filas anteriores a `last_recorded - 2 meses` (pensado para no rehashear históricos largos en cada importación). Se eliminó porque rompía el caso de importar un CSV con datos más antiguos que ese margen: se perdían movimientos reales en vez de simplemente deduplicarse. Ahora la deduplicación por hash es la única defensa contra duplicados, sin límite de antigüedad.
 
 ### Deduplicación de transacciones (lógica hash)
 El hash `raw_hash` se calcula en `parsers/base.py`:
