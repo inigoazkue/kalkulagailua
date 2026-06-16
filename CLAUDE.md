@@ -89,7 +89,7 @@ Migraciones existentes:
 
 Archivos en `frontend/public/`:
 - `manifest.json` — nombre, iconos, display: standalone, theme/background color
-- `icon.svg` — icono K geométrico con fondo slate/verde, sirve para launcher y splash
+- `icon.png` (512x512) — calculadora verde sobre tarjeta navy redondeada (fondo slate/verde igual que el icono anterior), sirve para launcher y splash. Generado componiendo el glifo de `calculadora.png` (aportado por el usuario, trazo negro sobre transparente) recoloreado a verde de marca sobre el fondo de la marca
 - `sw.js` — service worker: network-first para assets estáticos, nunca intercepta `/api/`
 
 Registrado en `main.tsx` (window load event). El SW habilita la instalación nativa en Android vía Chrome → "Añadir a pantalla de inicio".

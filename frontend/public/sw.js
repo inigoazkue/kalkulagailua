@@ -1,4 +1,4 @@
-const CACHE = 'kalkulagailua-v1'
+const CACHE = 'kalkulagailua-v2'
 
 self.addEventListener('install', () => self.skipWaiting())
 

@@ -3,6 +3,7 @@
 ### v1.1.1
 - **Fix parser MyInvestor**: corrige mojibake en las descripciones de transacciones (acentos UTF-8 re-leídos como Latin-1 antes de exportar, ej. "ó" → "Ã³"); nuevo helper `fix_mojibake()` reutilizable en `parsers/base.py`
 - **Número de versión visible en la app**: junto a "Ajustes" en el sidebar (desktop) y en el sheet "Más" (móvil)
+- **Nuevo icono de la app**: calculadora verde sobre tarjeta navy (sustituye al icono "K"), usado en favicon, PWA y pantalla de inicio
 
 ### v1.1.0
 - **Backup de base de datos** (Ajustes → Backup): descarga un volcado SQL completo con todos los datos
