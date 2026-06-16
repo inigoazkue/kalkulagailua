@@ -4,6 +4,8 @@ import { fetchAccounts, importFile, updateAccountBalance, ImportResult, Account,
 import { Upload, CheckCircle, XCircle, Wallet, Pencil, Save } from 'lucide-react'
 import { clsx } from 'clsx'
 import { Link } from 'react-router-dom'
+import PrivacyToggle from '../components/PrivacyToggle'
+import { Sensitive } from '../components/Sensitive'
 
 const BANK_LABELS: Record<BankId, string> = {
   caixabank: 'CaixaBank',
@@ -64,7 +66,7 @@ function BalanceSection({ account, highlightEmpty }: { account: Account; highlig
             <span className="text-xs text-slate-400">Saldo disponible</span>
             {hasBalance ? (
               <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-sm font-semibold text-white">{fmtBalance(account.current_balance)}</span>
+                <span className="text-sm font-semibold text-white"><Sensitive>{fmtBalance(account.current_balance)}</Sensitive></span>
                 {account.balance_date && (
                   <span className="text-xs text-slate-500">
                     {new Date(account.balance_date + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -257,7 +259,10 @@ export default function Import() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-white">Importar transacciones</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-white">Importar transacciones</h2>
+        <PrivacyToggle />
+      </div>
       {Object.entries(byBank).map(([bank, accs]) => (
         <div key={bank}>
           <h3 className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3">

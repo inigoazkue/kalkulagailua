@@ -17,6 +17,8 @@ import {
   PeriodType, PERIOD_OPTIONS, buildPayrollCycles, computePeriod,
   buildMonthOptions, buildQuarterOptions, buildYearOptions,
 } from '../utils/periods'
+import PrivacyToggle from '../components/PrivacyToggle'
+import { Sensitive } from '../components/Sensitive'
 
 type TxPeriodType = 'all' | PeriodType
 
@@ -248,7 +250,7 @@ export default function Transactions() {
         const val = Number(info.getValue())
         return (
           <span className={clsx('font-mono font-medium', val >= 0 ? 'text-green-400' : 'text-red-400')}>
-            {fmt(info.getValue())}
+            <Sensitive>{fmt(info.getValue())}</Sensitive>
           </span>
         )
       },
@@ -294,6 +296,7 @@ export default function Transactions() {
             <button onClick={() => { setCategoryId(''); resetPage() }} className="hover:text-white">✕</button>
           </span>
         )}
+        <PrivacyToggle className="ml-auto" />
       </div>
 
       {/* Filter bar */}

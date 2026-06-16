@@ -1,5 +1,8 @@
 # Changelog
 
+### v1.2.0
+- **Modo privacidad**: icono de ojo (cerrado por defecto) que difumina todos los importes y gráficos de la app — junto a "Ahorro total" en el Dashboard y en la esquina superior derecha del resto de páginas (Analítica, Transacciones, Cuentas, Inversiones, Trans. internas, Importar)
+
 ### v1.1.1
 - **Fix parser MyInvestor**: corrige mojibake en las descripciones de transacciones (acentos UTF-8 re-leídos como Latin-1 antes de exportar, ej. "ó" → "Ã³"); nuevo helper `fix_mojibake()` reutilizable en `parsers/base.py`
 - **Número de versión visible en la app**: junto a "Ajustes" en el sidebar (desktop) y en el sheet "Más" (móvil)

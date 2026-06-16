@@ -5,6 +5,8 @@ import {
   CartesianGrid, ResponsiveContainer, Legend, ReferenceLine,
 } from 'recharts'
 import { fetchAccounts, fetchSummary, fetchPayrollDates, Account } from '../api/client'
+import PrivacyToggle from '../components/PrivacyToggle'
+import { Sensitive, SensitiveBlock } from '../components/Sensitive'
 
 type PeriodType = 'payroll' | 'month' | 'quarter' | 'year'
 
@@ -63,40 +65,40 @@ function AccountSummaryCard({ account, start, end }: { account: Account; start: 
         <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: account.color }} />
         <span className="font-medium text-white text-sm">{account.name}</span>
         {account.current_balance !== null && (
-          <span className="ml-auto text-sm font-semibold text-white">{fmt(account.current_balance)}</span>
+          <span className="ml-auto text-sm font-semibold text-white"><Sensitive>{fmt(account.current_balance)}</Sensitive></span>
         )}
       </div>
       <div className="grid grid-cols-2 gap-2 text-xs">
         <div className="bg-slate-700/50 rounded-lg p-2">
           <div className="text-slate-400">Ingresos</div>
-          <div className="text-green-400 font-semibold mt-0.5">{fmt(summary?.income ?? 0)}</div>
+          <div className="text-green-400 font-semibold mt-0.5"><Sensitive>{fmt(summary?.income ?? 0)}</Sensitive></div>
         </div>
         <div className="bg-slate-700/50 rounded-lg p-2 flex gap-2">
           <div className="flex-1 min-w-0">
             <div className="text-slate-400">Fijos</div>
-            <div className="text-red-400 font-semibold mt-0.5 truncate">{fmt(summary?.fixed_expenses ?? 0)}</div>
+            <div className="text-red-400 font-semibold mt-0.5 truncate"><Sensitive>{fmt(summary?.fixed_expenses ?? 0)}</Sensitive></div>
           </div>
           <div className="w-px bg-slate-600 self-stretch shrink-0" />
           <div className="flex-1 min-w-0">
             <div className="text-slate-400">Variables</div>
-            <div className="text-orange-400 font-semibold mt-0.5 truncate">{fmt(summary?.variable_expenses ?? 0)}</div>
+            <div className="text-orange-400 font-semibold mt-0.5 truncate"><Sensitive>{fmt(summary?.variable_expenses ?? 0)}</Sensitive></div>
           </div>
         </div>
         <div className="bg-slate-700/50 rounded-lg p-2 flex gap-2">
           <div className="flex-1 min-w-0">
             <div className="text-slate-400">Ahorro</div>
-            <div className="text-emerald-400 font-semibold mt-0.5 truncate">{fmt(summary?.savings_transfer ?? 0)}</div>
+            <div className="text-emerald-400 font-semibold mt-0.5 truncate"><Sensitive>{fmt(summary?.savings_transfer ?? 0)}</Sensitive></div>
           </div>
           <div className="w-px bg-slate-600 self-stretch shrink-0" />
           <div className="flex-1 min-w-0">
             <div className="text-slate-400">Inversión</div>
-            <div className="text-purple-400 font-semibold mt-0.5 truncate">{fmt(summary?.investment ?? 0)}</div>
+            <div className="text-purple-400 font-semibold mt-0.5 truncate"><Sensitive>{fmt(summary?.investment ?? 0)}</Sensitive></div>
           </div>
         </div>
         <div className="bg-slate-700/50 rounded-lg p-2">
           <div className="text-slate-400">Neto período</div>
           <div className={`font-semibold mt-0.5 ${Number(summary?.savings ?? 0) >= 0 ? 'text-blue-400' : 'text-red-400'}`}>
-            {fmt(summary?.savings ?? 0)}
+            <Sensitive>{fmt(summary?.savings ?? 0)}</Sensitive>
           </div>
         </div>
       </div>
@@ -191,17 +193,20 @@ export default function Dashboard() {
             <span className="text-xs text-amber-400">Marca una cuenta como "Cuenta nómina" en Ajustes → Cuentas</span>
           )}
         </div>
-        {hasSavings && (
-          <div className="text-right">
-            <div className="text-xs text-slate-400">Ahorro total</div>
-            <div className="text-2xl font-bold text-green-400">{fmt(totalSavings)}</div>
-            {missingBalances.length > 0 && (
-              <div className="text-xs text-amber-400 mt-0.5">
-                Sin saldo: {missingBalances.map(a => a.name).join(', ')}
-              </div>
-            )}
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <PrivacyToggle />
+          {hasSavings && (
+            <div className="text-right">
+              <div className="text-xs text-slate-400">Ahorro total</div>
+              <div className="text-2xl font-bold text-green-400"><Sensitive>{fmt(totalSavings)}</Sensitive></div>
+              {missingBalances.length > 0 && (
+                <div className="text-xs text-amber-400 mt-0.5">
+                  Sin saldo: {missingBalances.map(a => a.name).join(', ')}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {dashboardAccounts.length > 0 ? (
@@ -224,7 +229,7 @@ export default function Dashboard() {
             {payrollAccount ? `${payrollAccount.name} · período seleccionado` : 'Marca una cuenta como "Cuenta nómina" en Ajustes → Cuentas'}
           </p>
           {payrollAccount && incomePieData.length > 0 ? (
-            <>
+            <SensitiveBlock>
               <ResponsiveContainer width="100%" height={240}>
                 <PieChart>
                   <Pie
@@ -252,7 +257,7 @@ export default function Dashboard() {
               <p className="text-center text-xs text-slate-500 mt-1">
                 Ingresos totales: <span className="text-green-400 font-medium">{fmt(payrollIncome)}</span>
               </p>
-            </>
+            </SensitiveBlock>
           ) : (
             <div className="flex items-center justify-center h-48 text-slate-500 text-sm">
               {!payrollAccount ? 'Sin cuenta nómina configurada' : 'Sin datos en este período'}
@@ -264,23 +269,25 @@ export default function Dashboard() {
         <div className="bg-slate-800 rounded-xl p-5">
           <h3 className="text-sm font-medium text-slate-300 mb-1">Tendencia (6 meses)</h3>
           <p className="text-xs text-slate-500 mb-3">Cuentas de ahorro total · meses naturales</p>
-          <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={trendData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 12 }} />
-              <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} tickFormatter={v => `${v}€`} />
-              <ReferenceLine y={0} stroke="#475569" strokeWidth={1} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: 12 }}
-                formatter={(v: number) => fmt(v)}
-              />
-              <Legend formatter={v => <span style={{ color: '#94a3b8', fontSize: 12 }}>{v}</span>} />
-              <Line type="monotone" dataKey="Ingresos" stroke="#22c55e" strokeWidth={1.5} strokeDasharray="5 4" dot={false} />
-              <Line type="monotone" dataKey="Gastos" stroke="#ef4444" strokeWidth={1.5} strokeDasharray="5 4" dot={false} />
-              <Line type="monotone" dataKey="Inversión" stroke="#a855f7" strokeWidth={1.5} strokeDasharray="5 4" dot={false} />
-              <Line type="monotone" dataKey="Ahorro neto" stroke="#3b82f6" strokeWidth={2.5} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
+          <SensitiveBlock>
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={trendData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} tickFormatter={v => `${v}€`} />
+                <ReferenceLine y={0} stroke="#475569" strokeWidth={1} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: 12 }}
+                  formatter={(v: number) => fmt(v)}
+                />
+                <Legend formatter={v => <span style={{ color: '#94a3b8', fontSize: 12 }}>{v}</span>} />
+                <Line type="monotone" dataKey="Ingresos" stroke="#22c55e" strokeWidth={1.5} strokeDasharray="5 4" dot={false} />
+                <Line type="monotone" dataKey="Gastos" stroke="#ef4444" strokeWidth={1.5} strokeDasharray="5 4" dot={false} />
+                <Line type="monotone" dataKey="Inversión" stroke="#a855f7" strokeWidth={1.5} strokeDasharray="5 4" dot={false} />
+                <Line type="monotone" dataKey="Ahorro neto" stroke="#3b82f6" strokeWidth={2.5} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </SensitiveBlock>
         </div>
       </div>
     </div>

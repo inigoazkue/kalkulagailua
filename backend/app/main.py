@@ -9,7 +9,7 @@ from app.routers import auth as auth_router
 from app.auth import verify_token
 from app.services.categorizer import auto_categorize_all
 
-app = FastAPI(title="Kalkulagailua API", version="1.1.1")
+app = FastAPI(title="Kalkulagailua API", version="1.2.0")
 
 app.add_middleware(
     CORSMiddleware,

@@ -11,6 +11,8 @@ import {
   PeriodType, PERIOD_OPTIONS, buildPayrollCycles, computePeriod,
   buildMonthOptions, buildQuarterOptions, buildYearOptions,
 } from '../utils/periods'
+import PrivacyToggle from '../components/PrivacyToggle'
+import { Sensitive, SensitiveBlock } from '../components/Sensitive'
 
 const fmt = (v: number) => v.toLocaleString('es', { style: 'currency', currency: 'EUR' })
 const fmtDate = (s: string) => new Date(s + 'T00:00:00').toLocaleDateString('es', { day: 'numeric', month: 'short' })
@@ -156,6 +158,7 @@ export default function Analytics() {
             {fmtDate(period.start)} – {fmtDate(period.end)}
           </span>
         )}
+        <PrivacyToggle className={period ? '' : 'ml-auto'} />
       </div>
 
       {accounts.length === 0 ? (
@@ -176,7 +179,7 @@ export default function Analytics() {
                 <div className="text-left">
                   <div>{a.name}</div>
                   {a.current_balance !== null && (
-                    <div className="text-xs font-normal text-slate-400">{fmt(Number(a.current_balance))}</div>
+                    <div className="text-xs font-normal text-slate-400"><Sensitive>{fmt(Number(a.current_balance))}</Sensitive></div>
                   )}
                 </div>
               </button>
@@ -195,7 +198,7 @@ export default function Analytics() {
                 )}>
                 <div className="text-xs text-slate-400 uppercase tracking-wide">{label}</div>
                 <div className={`text-xl font-bold mt-1 ${color}`}>
-                  {isLoading ? <span className="text-slate-600">—</span> : fmt(value)}
+                  {isLoading ? <span className="text-slate-600">—</span> : <Sensitive>{fmt(value)}</Sensitive>}
                 </div>
                 {metric && <div className="text-xs text-slate-600 mt-1">Ver transacciones →</div>}
               </button>
@@ -211,21 +214,23 @@ export default function Analytics() {
               {isLoading ? (
                 <div className="flex items-center justify-center h-48 text-slate-500 text-sm">Cargando...</div>
               ) : barData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={barData} barSize={barData.length > 25 ? 4 : 7} barGap={1}
-                    onClick={handleBarClick} style={{ cursor: 'pointer' }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                    <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 10 }}
-                      tickFormatter={fmtDate} interval={barInterval} />
-                    <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={v => `${v}€`} width={60} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: 12 }}
-                      labelFormatter={fmtDate} formatter={(v: number) => fmt(v)} />
-                    <Legend />
-                    <Bar dataKey="income" name="Ingresos" fill="#22c55e" />
-                    <Bar dataKey="expenses" name="Gastos" fill="#ef4444" />
-                  </BarChart>
-                </ResponsiveContainer>
+                <SensitiveBlock>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={barData} barSize={barData.length > 25 ? 4 : 7} barGap={1}
+                      onClick={handleBarClick} style={{ cursor: 'pointer' }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                      <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 10 }}
+                        tickFormatter={fmtDate} interval={barInterval} />
+                      <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} tickFormatter={v => `${v}€`} width={60} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: 12 }}
+                        labelFormatter={fmtDate} formatter={(v: number) => fmt(v)} />
+                      <Legend />
+                      <Bar dataKey="income" name="Ingresos" fill="#22c55e" />
+                      <Bar dataKey="expenses" name="Gastos" fill="#ef4444" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </SensitiveBlock>
               ) : (
                 <div className="flex items-center justify-center h-48 text-slate-500 text-sm">Sin datos en este período</div>
               )}
@@ -238,25 +243,27 @@ export default function Analytics() {
               {isLoading ? (
                 <div className="flex items-center justify-center h-48 text-slate-500 text-sm">Cargando...</div>
               ) : pieData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={260}>
-                  <PieChart>
-                    <Pie data={pieData} dataKey="total" nameKey="name" cx="50%" cy="50%"
-                      outerRadius={90}
-                      label={({ percent }) => percent > 0.04 ? `${(percent * 100).toFixed(0)}%` : ''}
-                      labelLine={false}
-                      onClick={(_data, _index, event) => {
-                        event.stopPropagation()
-                        handlePieClick(_data as AnalyticsCategory)
-                      }}
-                      style={{ cursor: 'pointer' }}>
-                      {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: 12 }}
-                      formatter={(v: number) => fmt(v)} />
-                    <Legend formatter={v => <span style={{ color: '#94a3b8', fontSize: 12 }}>{v}</span>} />
-                  </PieChart>
-                </ResponsiveContainer>
+                <SensitiveBlock>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <PieChart>
+                      <Pie data={pieData} dataKey="total" nameKey="name" cx="50%" cy="50%"
+                        outerRadius={90}
+                        label={({ percent }) => percent > 0.04 ? `${(percent * 100).toFixed(0)}%` : ''}
+                        labelLine={false}
+                        onClick={(_data, _index, event) => {
+                          event.stopPropagation()
+                          handlePieClick(_data as AnalyticsCategory)
+                        }}
+                        style={{ cursor: 'pointer' }}>
+                        {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: 12 }}
+                        formatter={(v: number) => fmt(v)} />
+                      <Legend formatter={v => <span style={{ color: '#94a3b8', fontSize: 12 }}>{v}</span>} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </SensitiveBlock>
               ) : (
                 <div className="flex items-center justify-center h-48 text-slate-500 text-sm">Sin gastos en este período</div>
               )}

@@ -12,6 +12,7 @@ import Transfers from './pages/Transfers'
 import Backup from './pages/Backup'
 import Login from './pages/Login'
 import api from './api/client'
+import { PrivacyProvider } from './context/PrivacyContext'
 
 function initAuth(): boolean {
   const token = localStorage.getItem('token')
@@ -40,21 +41,23 @@ export default function App() {
   }
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Layout onLogout={handleLogout} />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="analytics" element={<Analytics />} />
-          <Route path="accounts" element={<Accounts />} />
-          <Route path="transactions" element={<Transactions />} />
-          <Route path="import" element={<Import />} />
-          <Route path="investments" element={<Investments />} />
-          <Route path="categories" element={<Categories />} />
-          <Route path="transfers" element={<Transfers />} />
-          <Route path="backup" element={<Backup />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <PrivacyProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Layout onLogout={handleLogout} />}>
+            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="analytics" element={<Analytics />} />
+            <Route path="accounts" element={<Accounts />} />
+            <Route path="transactions" element={<Transactions />} />
+            <Route path="import" element={<Import />} />
+            <Route path="investments" element={<Investments />} />
+            <Route path="categories" element={<Categories />} />
+            <Route path="transfers" element={<Transfers />} />
+            <Route path="backup" element={<Backup />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </PrivacyProvider>
   )
 }

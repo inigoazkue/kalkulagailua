@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchPositions, createAsset, InvestmentPosition } from '../api/client'
 import { Plus, X, TrendingUp, TrendingDown } from 'lucide-react'
 import { clsx } from 'clsx'
+import PrivacyToggle from '../components/PrivacyToggle'
+import { Sensitive } from '../components/Sensitive'
 
 const fmt = (val: string | number, decimals = 2) =>
   Number(val).toLocaleString('es', {
@@ -121,9 +123,9 @@ function PositionRow({ pos }: { pos: InvestmentPosition }) {
       <td className="px-4 py-4">
         <AssetTypeBadge type={pos.asset.asset_type} />
       </td>
-      <td className="px-4 py-4 text-sm font-mono text-slate-200">{fmt(pos.cost_basis)}</td>
-      <td className="px-4 py-4 text-sm font-mono text-slate-200">{fmt(pos.current_price, 4)}</td>
-      <td className="px-4 py-4 text-sm font-mono text-white font-medium">{fmt(pos.current_value)}</td>
+      <td className="px-4 py-4 text-sm font-mono text-slate-200"><Sensitive>{fmt(pos.cost_basis)}</Sensitive></td>
+      <td className="px-4 py-4 text-sm font-mono text-slate-200"><Sensitive>{fmt(pos.current_price, 4)}</Sensitive></td>
+      <td className="px-4 py-4 text-sm font-mono text-white font-medium"><Sensitive>{fmt(pos.current_value)}</Sensitive></td>
       <td className="px-4 py-4">
         <div className="flex items-center gap-1">
           {isPositive ? (
@@ -132,13 +134,13 @@ function PositionRow({ pos }: { pos: InvestmentPosition }) {
             <TrendingDown size={14} className="text-red-400" />
           )}
           <span className={clsx('text-sm font-mono font-medium', isPositive ? 'text-green-400' : 'text-red-400')}>
-            {fmt(pos.pnl)}
+            <Sensitive>{fmt(pos.pnl)}</Sensitive>
           </span>
         </div>
       </td>
       <td className="px-4 py-4">
         <span className={clsx('text-sm font-mono font-medium', isPositive ? 'text-green-400' : 'text-red-400')}>
-          {fmtPct(pnlPct)}
+          <Sensitive>{fmtPct(pnlPct)}</Sensitive>
         </span>
       </td>
     </tr>
@@ -162,34 +164,37 @@ export default function Investments() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-white">Inversiones</h2>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg transition-colors"
-        >
-          <Plus size={16} />
-          Añadir activo
-        </button>
+        <div className="flex items-center gap-2">
+          <PrivacyToggle />
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg transition-colors"
+          >
+            <Plus size={16} />
+            Añadir activo
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-slate-800 rounded-xl p-4">
           <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">Capital invertido</p>
-          <p className="text-lg font-bold text-white">{fmt(totalCostBasis)}</p>
+          <p className="text-lg font-bold text-white"><Sensitive>{fmt(totalCostBasis)}</Sensitive></p>
         </div>
         <div className="bg-slate-800 rounded-xl p-4">
           <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">Valor actual</p>
-          <p className="text-lg font-bold text-white">{fmt(totalCurrentValue)}</p>
+          <p className="text-lg font-bold text-white"><Sensitive>{fmt(totalCurrentValue)}</Sensitive></p>
         </div>
         <div className="bg-slate-800 rounded-xl p-4">
           <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">P&L Total</p>
           <p className={clsx('text-lg font-bold', totalPnl >= 0 ? 'text-green-400' : 'text-red-400')}>
-            {fmt(totalPnl)}
+            <Sensitive>{fmt(totalPnl)}</Sensitive>
           </p>
         </div>
         <div className="bg-slate-800 rounded-xl p-4">
           <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">Rentabilidad</p>
           <p className={clsx('text-lg font-bold', totalPnlPct >= 0 ? 'text-green-400' : 'text-red-400')}>
-            {fmtPct(totalPnlPct)}
+            <Sensitive>{fmtPct(totalPnlPct)}</Sensitive>
           </p>
         </div>
       </div>
@@ -225,17 +230,17 @@ export default function Investments() {
                 <tfoot>
                   <tr className="border-t border-slate-600 bg-slate-750">
                     <td colSpan={2} className="px-4 py-3 text-sm font-medium text-slate-300">Total</td>
-                    <td className="px-4 py-3 text-sm font-mono font-bold text-white">{fmt(totalCostBasis)}</td>
+                    <td className="px-4 py-3 text-sm font-mono font-bold text-white"><Sensitive>{fmt(totalCostBasis)}</Sensitive></td>
                     <td className="px-4 py-3" />
-                    <td className="px-4 py-3 text-sm font-mono font-bold text-white">{fmt(totalCurrentValue)}</td>
+                    <td className="px-4 py-3 text-sm font-mono font-bold text-white"><Sensitive>{fmt(totalCurrentValue)}</Sensitive></td>
                     <td className="px-4 py-3 text-sm font-mono font-bold">
                       <span className={clsx(totalPnl >= 0 ? 'text-green-400' : 'text-red-400')}>
-                        {fmt(totalPnl)}
+                        <Sensitive>{fmt(totalPnl)}</Sensitive>
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm font-mono font-bold">
                       <span className={clsx(totalPnlPct >= 0 ? 'text-green-400' : 'text-red-400')}>
-                        {fmtPct(totalPnlPct)}
+                        <Sensitive>{fmtPct(totalPnlPct)}</Sensitive>
                       </span>
                     </td>
                   </tr>

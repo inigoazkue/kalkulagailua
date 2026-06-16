@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { fetchAccounts, createAccount, updateAccount, deleteAccount, Account, AccountCreate, AccountUpdate, BankId, AccountSubtype } from '../api/client'
 import { Plus, Pencil, Trash2, X, Wallet } from 'lucide-react'
 import { clsx } from 'clsx'
+import PrivacyToggle from '../components/PrivacyToggle'
+import { Sensitive } from '../components/Sensitive'
 
 const BANK_LABELS: Record<BankId, string> = {
   caixabank: 'CaixaBank',
@@ -164,7 +166,7 @@ function AccountCard({ account }: { account: Account }) {
             <p className="text-xs text-slate-500 font-mono mt-0.5">···· {account.iban.slice(-4)}</p>
           )}
           {account.current_balance !== null && (
-            <p className="text-sm font-semibold text-white mt-1">{fmt(account.current_balance)}</p>
+            <p className="text-sm font-semibold text-white mt-1"><Sensitive>{fmt(account.current_balance)}</Sensitive></p>
           )}
           {account.balance_date && (
             <p className="text-xs text-slate-500">actualizado {account.balance_date}</p>
@@ -230,14 +232,17 @@ export default function Accounts() {
           <h2 className="text-xl font-semibold text-white">Cuentas</h2>
           {hasSavings && (
             <p className="text-sm text-slate-400 mt-0.5">
-              Ahorro total: <span className="text-green-400 font-semibold">{fmt(totalSavings)}</span>
+              Ahorro total: <span className="text-green-400 font-semibold"><Sensitive>{fmt(totalSavings)}</Sensitive></span>
             </p>
           )}
         </div>
-        <button onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg transition-colors">
-          <Plus size={16} /> Nueva cuenta
-        </button>
+        <div className="flex items-center gap-2">
+          <PrivacyToggle />
+          <button onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg transition-colors">
+            <Plus size={16} /> Nueva cuenta
+          </button>
+        </div>
       </div>
 
       {isLoading ? (

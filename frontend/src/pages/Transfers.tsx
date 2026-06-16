@@ -4,6 +4,8 @@ import { useSearchParams } from 'react-router-dom'
 import { fetchTransfers, deleteTransfer, detectTransfers, validateTransfers, fetchAccounts, fetchCategories, assignCategory } from '../api/client'
 import { Trash2, ArrowLeftRight, Search, Check, ChevronDown } from 'lucide-react'
 import { clsx } from 'clsx'
+import PrivacyToggle from '../components/PrivacyToggle'
+import { Sensitive } from '../components/Sensitive'
 
 const fmt = (val: string) =>
   Number(val).toLocaleString('es', { style: 'currency', currency: 'EUR' })
@@ -166,14 +168,17 @@ export default function Transfers() {
             Movimientos entre tus propias cuentas. No se incluyen en cálculos de ingresos ni gastos.
           </p>
         </div>
-        <button
-          onClick={() => detectMutation.mutate()}
-          disabled={detectMutation.isPending}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white text-sm rounded-lg transition-colors shrink-0"
-        >
-          <Search size={15} />
-          {detectMutation.isPending ? 'Detectando...' : 'Detectar ahora'}
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <PrivacyToggle />
+          <button
+            onClick={() => detectMutation.mutate()}
+            disabled={detectMutation.isPending}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white text-sm rounded-lg transition-colors shrink-0"
+          >
+            <Search size={15} />
+            {detectMutation.isPending ? 'Detectando...' : 'Detectar ahora'}
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -271,7 +276,7 @@ export default function Transfers() {
                       <div className="text-xs text-slate-500 truncate max-w-[200px]" title={t.tx_in.description}>{t.tx_in.description}</div>
                     </td>
                     <td className="px-4 py-3 text-sm font-mono font-medium text-slate-200">
-                      {fmt(t.tx_in.amount)}
+                      <Sensitive>{fmt(t.tx_in.amount)}</Sensitive>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5 flex-wrap">
