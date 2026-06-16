@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { LayoutDashboard, List, TrendingUp, LogOut, BarChart2, Settings, Wallet, Upload, Tag, ArrowLeftRight, Database } from 'lucide-react'
 import { clsx } from 'clsx'
+import { APP_VERSION } from '../utils/version'
 
 const mainNav = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -50,6 +51,7 @@ export default function Sidebar({ onLogout }: { onLogout: () => void }) {
         <div className="flex items-center gap-2 px-3 py-1 mb-1">
           <Settings size={13} className="text-slate-500" />
           <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Ajustes</span>
+          <span className="text-[10px] text-slate-600">v{APP_VERSION}</span>
         </div>
         <div className="flex flex-col gap-1">
           {settingsNav.map(item => <NavItem key={item.to} {...item} />)}

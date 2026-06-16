@@ -6,6 +6,7 @@ import {
   Wallet, Tag, LogOut, X, Database,
 } from 'lucide-react'
 import { clsx } from 'clsx'
+import { APP_VERSION } from '../utils/version'
 
 const primaryNav = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -60,7 +61,9 @@ export default function BottomNav({ onLogout }: { onLogout: () => void }) {
             </div>
 
             <div className="border-t border-slate-700 mt-2 pt-2">
-              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-3 pb-1">Ajustes</p>
+              <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-3 pb-1">
+                Ajustes <span className="font-normal text-slate-600">v{APP_VERSION}</span>
+              </p>
               <div className="grid grid-cols-2 gap-1">
                 {moreSettingsNav.map(({ to, label, icon: Icon }) => (
                   <button
