@@ -192,6 +192,10 @@ async def list_transactions(
         filters.append(Transaction.date <= end)
     if account_id:
         filters.append(Transaction.account_id == account_id)
+    if bank:
+        filters.append(
+            Transaction.account_id.in_(select(Account.id).where(Account.bank == bank))
+        )
 
     query = (
         select(Transaction)

@@ -282,7 +282,46 @@ export default function Transfers() {
             )}
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Mobile card list */}
+          <div className="md:hidden divide-y divide-slate-700/50">
+            {filteredTransfers.map(t => (
+              <div key={t.id} className="px-4 py-3 space-y-2">
+                <div className="flex justify-between items-start gap-2">
+                  <span className="text-xs text-slate-400">{fmtDate(t.tx_out.date)}</span>
+                  <Sensitive><span className="font-mono font-medium text-slate-200">{fmt(t.tx_in.amount)}</span></Sensitive>
+                </div>
+                <div className="space-y-0.5 text-xs">
+                  <div><span className="text-slate-500">Desde: </span><span className="text-slate-300">{accountName(t.tx_out.account_id)}</span></div>
+                  <div className="text-slate-600 truncate">{t.tx_out.description}</div>
+                  <div><span className="text-slate-500">Hasta: </span><span className="text-slate-300">{accountName(t.tx_in.account_id)}</span></div>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5 flex-wrap flex-1">
+                    {t.is_manual && <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300">Manual</span>}
+                    {t.is_validated && <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-300">Validada</span>}
+                    {t.is_rejected && <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-300">No validada</span>}
+                    {!t.is_validated && !t.is_rejected && <span className="text-xs px-2 py-0.5 rounded-full bg-slate-600 text-slate-400">Pendiente</span>}
+                  </div>
+                  <div className="flex gap-0.5">
+                    <button
+                      onClick={() => t.is_validated ? resetMutation.mutate([t.id]) : validateMutation.mutate({ ids: [t.id], validated: true })}
+                      disabled={validateMutation.isPending || rejectMutation.isPending || resetMutation.isPending}
+                      className={clsx("p-2 rounded-lg transition-colors", t.is_validated ? "text-green-400 hover:text-slate-400" : "text-slate-500 hover:text-green-400")}
+                    ><Check size={15} /></button>
+                    <button
+                      onClick={() => t.is_rejected ? resetMutation.mutate([t.id]) : rejectMutation.mutate({ ids: [t.id], rejected: true })}
+                      disabled={validateMutation.isPending || rejectMutation.isPending || resetMutation.isPending}
+                      className={clsx("p-2 rounded-lg transition-colors", t.is_rejected ? "text-red-400 hover:text-slate-400" : "text-slate-500 hover:text-red-400")}
+                    ><X size={15} /></button>
+                  </div>
+                </div>
+                <TxCategoryDropdown txId={t.tx_out_id} current={t.tx_out.category_assignment?.category ?? null} />
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
           <table className="w-full min-w-[640px]">
             <thead>
               <tr className="border-b border-slate-700">

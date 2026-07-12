@@ -225,7 +225,64 @@ export default function InvestmentLinks() {
             )}
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Mobile card list */}
+          <div className="md:hidden divide-y divide-slate-700/50">
+            {filteredRows.map(row => {
+              const { transaction: tx, link } = row
+              return (
+                <div key={tx.id} className="px-4 py-3 space-y-2">
+                  <div className="flex justify-between items-start gap-2">
+                    <span className="text-xs text-slate-400">{fmtDateEs(tx.date)}</span>
+                    <Sensitive><span className="font-mono font-medium text-slate-200">{fmt(tx.amount)}</span></Sensitive>
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-200 break-words">{tx.description}</p>
+                    <p className="text-xs text-slate-500">{accountName(tx.account_id)}</p>
+                  </div>
+                  {link ? (
+                    <div className="text-sm">
+                      <span className="text-slate-200 font-medium">{link.asset.name}</span>
+                      {link.asset.ticker && <span className="text-xs text-slate-500 ml-1.5">{link.asset.ticker}</span>}
+                    </div>
+                  ) : (
+                    <AssetDropdown transactionId={tx.id} assets={assets} onLinked={() => {}} />
+                  )}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {link && (
+                      <>
+                        <span className={clsx("text-xs px-2 py-0.5 rounded-full", link.is_auto ? "bg-slate-600 text-slate-400" : "bg-blue-500/20 text-blue-300")}>
+                          {link.is_auto ? "Auto" : "Manual"}
+                        </span>
+                        {link.is_validated && <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-300">Validada</span>}
+                        {link.is_rejected && <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-300">No validada</span>}
+                        {!link.is_validated && !link.is_rejected && <span className="text-xs px-2 py-0.5 rounded-full bg-slate-600/60 text-slate-400">Pendiente</span>}
+                        <div className="flex gap-0.5 ml-auto">
+                          <button
+                            onClick={() => link.is_validated ? resetMutation.mutate([link.id]) : validateMutation.mutate([link.id])}
+                            disabled={isBusy}
+                            className={clsx("p-2 rounded-lg transition-colors", link.is_validated ? "text-green-400 hover:text-slate-400" : "text-slate-500 hover:text-green-400")}
+                          ><Check size={15} /></button>
+                          <button
+                            onClick={() => link.is_rejected ? resetMutation.mutate([link.id]) : rejectMutation.mutate([link.id])}
+                            disabled={isBusy}
+                            className={clsx("p-2 rounded-lg transition-colors", link.is_rejected ? "text-red-400 hover:text-slate-400" : "text-slate-500 hover:text-red-400")}
+                          ><X size={15} /></button>
+                          <button
+                            onClick={() => deleteMutation.mutate(link.id)}
+                            disabled={deleteMutation.isPending}
+                            className="p-2 rounded-lg transition-colors text-slate-500 hover:text-red-400"
+                          ><Trash2 size={15} /></button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full min-w-[700px]">
               <thead>
                 <tr className="border-b border-slate-700">
