@@ -11,7 +11,8 @@ from app.schemas import (
     InvestmentAssetOut, InvestmentAssetCreate, InvestmentAssetUpdate,
     InvestmentAssetCreateByIsin,
     InvestmentTransactionOut, InvestmentTransactionCreate,
-    InvestmentPositionOut, IsinLookupResult, PortfolioHistoryPoint,
+    InvestmentPositionOut, AssetPositionOut, PricePoint,
+    IsinLookupResult, PortfolioHistoryPoint,
 )
 from app.services.prices import get_current_price, fetch_asset_name, fetch_and_store_history
 from app.services.isin_lookup import lookup_isin
@@ -39,11 +40,9 @@ async def lookup_isin_endpoint(body: dict, db: AsyncSession = Depends(get_db)):
 @router.post("/investments/assets", response_model=InvestmentAssetOut, status_code=201)
 async def create_asset(body: InvestmentAssetCreateByIsin, db: AsyncSession = Depends(get_db)):
     isin = body.isin.strip().upper()
-    # Check if ISIN already exists
     existing = (await db.execute(select(InvestmentAsset).where(InvestmentAsset.isin == isin))).scalar_one_or_none()
     if existing:
         raise HTTPException(409, "Asset with this ISIN already exists")
-    # Lookup ISIN
     lookup = await lookup_isin(isin)
     name = lookup["name"] if lookup else isin
     ticker = lookup["ticker"] if lookup else None
@@ -52,7 +51,6 @@ async def create_asset(body: InvestmentAssetCreateByIsin, db: AsyncSession = Dep
     asset = InvestmentAsset(isin=isin, ticker=ticker, name=name, asset_type=asset_type, alias=body.alias)
     db.add(asset)
     await db.flush()
-    # Download price history if ticker known
     if ticker:
         await fetch_and_store_history(asset, db)
     await db.commit()
@@ -82,47 +80,123 @@ async def sync_prices(asset_id: int, db: AsyncSession = Depends(get_db)):
     return {"synced": count}
 
 
-@router.get("/investments/positions", response_model=list[InvestmentPositionOut])
+@router.get("/investments/positions", response_model=list[AssetPositionOut])
 async def get_positions(db: AsyncSession = Depends(get_db)):
-    assets_result = await db.execute(
-        select(InvestmentAsset).options(selectinload(InvestmentAsset.transactions))
-    )
-    assets = assets_result.scalars().all()
+    from app.models import TransactionAssetLink, Transaction, FundTransfer, PriceCache
+
+    assets = (await db.execute(select(InvestmentAsset).order_by(InvestmentAsset.name))).scalars().all()
+    if not assets:
+        return []
+    asset_ids = [a.id for a in assets]
+
+    # All transaction links with amounts and dates
+    links_rows = (await db.execute(
+        select(TransactionAssetLink, Transaction.date, Transaction.amount)
+        .join(Transaction, TransactionAssetLink.transaction_id == Transaction.id)
+        .where(TransactionAssetLink.asset_id.in_(asset_ids))
+        .order_by(Transaction.date)
+    )).all()
+    links_by_asset: dict[int, list] = defaultdict(list)
+    for row in links_rows:
+        links_by_asset[row.TransactionAssetLink.asset_id].append(row)
+
+    # Fund transfers
+    fund_transfers = (await db.execute(select(FundTransfer))).scalars().all()
+
+    # Full price history for all assets
+    price_rows = (await db.execute(
+        select(PriceCache)
+        .where(PriceCache.asset_id.in_(asset_ids))
+        .order_by(PriceCache.price_date)
+    )).scalars().all()
+    price_by_asset: dict[int, list[tuple]] = defaultdict(list)
+    for p in price_rows:
+        price_by_asset[p.asset_id].append((p.price_date, p.price))
+
+    def get_price_on(asset_id: int, d: date) -> Decimal | None:
+        for pd, pv in reversed(price_by_asset.get(asset_id, [])):
+            if pd <= d:
+                return pv
+        return None
+
+    today = date.today()
+    sparkline_cutoff = today - timedelta(days=90)
 
     positions = []
     for asset in assets:
-        if not asset.transactions:
-            continue
+        rows = links_by_asset.get(asset.id, [])
+        has_prices = bool(price_by_asset.get(asset.id))
 
-        total_qty = Decimal("0")
-        cost_basis = Decimal("0")
+        total_invested = Decimal("0")
+        total_received = Decimal("0")
+        qty_held = Decimal("0")
 
-        for tx in asset.transactions:
-            if tx.transaction_type == InvestmentTransactionTypeEnum.buy:
-                total_qty += tx.quantity
-                cost_basis += tx.quantity * tx.price_per_unit + tx.fees
+        for row in rows:
+            amount = row.amount
+            tx_date = row.date
+            if amount < 0:
+                total_invested += abs(amount)
+                if has_prices:
+                    p = get_price_on(asset.id, tx_date)
+                    if p and p > 0:
+                        qty_held += abs(amount) / p
             else:
-                total_qty -= tx.quantity
+                total_received += amount
+                if has_prices:
+                    p = get_price_on(asset.id, tx_date)
+                    if p and p > 0:
+                        qty_held -= amount / p
 
-        if total_qty <= 0:
-            continue
+        fund_transfer_in = Decimal("0")
+        fund_transfer_out = Decimal("0")
+        for ft in fund_transfers:
+            if ft.from_asset_id == asset.id:
+                fund_transfer_out += ft.withdrawal_amount
+                if has_prices:
+                    p = get_price_on(asset.id, ft.withdrawal_date)
+                    if p and p > 0:
+                        qty_held -= ft.withdrawal_amount / p
+            if ft.to_asset_id == asset.id:
+                fund_transfer_in += ft.arrival_amount
+                if has_prices:
+                    p = get_price_on(asset.id, ft.arrival_date)
+                    if p and p > 0:
+                        qty_held += ft.arrival_amount / p
 
-        current_price = await get_current_price(asset, db)
-        current_value = total_qty * current_price
-        pnl = current_value - cost_basis
-        pnl_pct = (pnl / cost_basis * 100) if cost_basis != 0 else Decimal("0")
+        net_invested = total_invested - total_received + fund_transfer_in - fund_transfer_out
 
-        positions.append(
-            InvestmentPositionOut(
-                asset=asset,
-                total_quantity=total_qty,
-                cost_basis=cost_basis,
-                current_price=current_price,
-                current_value=current_value,
-                pnl=pnl,
-                pnl_pct=pnl_pct,
-            )
-        )
+        current_price = None
+        current_price_date = None
+        current_value = None
+        pnl = None
+        pnl_pct = None
+
+        if has_prices:
+            prices = price_by_asset[asset.id]
+            if prices:
+                current_price_date, current_price = prices[-1]
+                if qty_held > 0 and current_price:
+                    current_value = qty_held * current_price
+                    pnl = current_value - net_invested
+                    pnl_pct = (pnl / net_invested * 100) if net_invested > 0 else Decimal("0")
+
+        sparkline = [
+            PricePoint(date=pd, price=pv)
+            for pd, pv in price_by_asset.get(asset.id, [])
+            if pd >= sparkline_cutoff
+        ]
+
+        positions.append(AssetPositionOut(
+            asset=asset,
+            net_invested=net_invested,
+            current_price=current_price,
+            current_price_date=current_price_date,
+            current_value=current_value,
+            pnl=pnl,
+            pnl_pct=pnl_pct,
+            has_prices=has_prices,
+            sparkline=sparkline,
+        ))
 
     return positions
 
@@ -131,12 +205,9 @@ async def get_positions(db: AsyncSession = Depends(get_db)):
 async def create_investment_transaction(
     body: InvestmentTransactionCreate, db: AsyncSession = Depends(get_db)
 ):
-    asset_result = await db.execute(
-        select(InvestmentAsset).where(InvestmentAsset.id == body.asset_id)
-    )
+    asset_result = await db.execute(select(InvestmentAsset).where(InvestmentAsset.id == body.asset_id))
     if asset_result.scalar_one_or_none() is None:
         raise HTTPException(status_code=404, detail="Asset not found")
-
     tx = InvestmentTransaction(**body.model_dump())
     db.add(tx)
     await db.commit()
@@ -156,28 +227,23 @@ async def portfolio_history(
     if start is None:
         start = end - timedelta(days=365)
 
-    # Get all validated links with quantity
     links_result = await db.execute(
         select(TransactionAssetLink, Transaction.date, Transaction.amount)
         .join(Transaction, TransactionAssetLink.transaction_id == Transaction.id)
         .where(TransactionAssetLink.is_validated == True)
-        .where(TransactionAssetLink.quantity.isnot(None))
         .order_by(Transaction.date)
     )
     links = links_result.all()
 
-    # Get fund transfers
     transfers_result = await db.execute(select(FundTransfer).order_by(FundTransfer.withdrawal_date))
     transfers = transfers_result.scalars().all()
 
-    # Get all asset IDs involved
     asset_ids = set(l.TransactionAssetLink.asset_id for l in links)
     asset_ids.update(t.from_asset_id for t in transfers)
     asset_ids.update(t.to_asset_id for t in transfers)
     if not asset_ids:
         return []
 
-    # Get price cache for date range
     prices_result = await db.execute(
         select(PriceCache)
         .where(PriceCache.asset_id.in_(asset_ids))
@@ -185,26 +251,19 @@ async def portfolio_history(
         .where(PriceCache.price_date <= end)
         .order_by(PriceCache.price_date)
     )
-    prices_raw = prices_result.scalars().all()
-    # Build price lookup: {asset_id: [(date, price), ...]}
     price_by_asset: dict[int, list] = defaultdict(list)
-    for p in prices_raw:
+    for p in prices_result.scalars().all():
         price_by_asset[p.asset_id].append((p.price_date, p.price))
 
     def get_price_on(asset_id: int, d: date) -> Decimal | None:
-        prices = price_by_asset.get(asset_id, [])
-        best = None
-        for pd, pv in reversed(prices):
+        for pd, pv in reversed(price_by_asset.get(asset_id, [])):
             if pd <= d:
-                best = pv
-                break
-        return best
+                return pv
+        return None
 
-    # Build daily history
     result = []
     current = start
     while current <= end:
-        # Cumulative quantity per asset up to current day
         qty_by_asset: dict[int, Decimal] = defaultdict(Decimal)
         contrib_by_asset: dict[int, Decimal] = defaultdict(Decimal)
         for row in links:
@@ -212,28 +271,27 @@ async def portfolio_history(
             tx_date = row.date
             tx_amount = row.amount
             if tx_date <= current:
-                qty = link.quantity if link.quantity else Decimal("0")
-                if tx_amount < 0:  # buy
+                qty = link.quantity
+                if qty is None:
+                    p = get_price_on(link.asset_id, tx_date)
+                    qty = abs(tx_amount) / p if (p and p > 0) else Decimal("0")
+                if tx_amount < 0:
                     qty_by_asset[link.asset_id] += qty
                     contrib_by_asset[link.asset_id] += abs(tx_amount)
-                else:  # sell
+                else:
                     qty_by_asset[link.asset_id] -= qty
                     contrib_by_asset[link.asset_id] -= abs(tx_amount)
         for t in transfers:
             if t.withdrawal_date <= current:
-                # Estimate qty transferred based on withdrawal amount
-                from_price = get_price_on(t.from_asset_id, t.withdrawal_date)
-                if from_price and from_price > 0:
-                    qty_transferred = t.withdrawal_amount / from_price
-                    qty_by_asset[t.from_asset_id] -= qty_transferred
+                p = get_price_on(t.from_asset_id, t.withdrawal_date)
+                if p and p > 0:
+                    qty_by_asset[t.from_asset_id] -= t.withdrawal_amount / p
             if t.arrival_date <= current:
-                to_price = get_price_on(t.to_asset_id, t.arrival_date)
-                if to_price and to_price > 0:
-                    qty_arrived = t.arrival_amount / to_price
-                    qty_by_asset[t.to_asset_id] += qty_arrived
+                p = get_price_on(t.to_asset_id, t.arrival_date)
+                if p and p > 0:
+                    qty_by_asset[t.to_asset_id] += t.arrival_amount / p
                 contrib_by_asset[t.to_asset_id] += t.arrival_amount
 
-        # Calculate total value
         total_value = Decimal("0")
         total_contrib = sum(contrib_by_asset.values())
         for asset_id, qty in qty_by_asset.items():

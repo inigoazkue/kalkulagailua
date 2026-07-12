@@ -107,6 +107,18 @@ export interface InvestmentAsset {
   created_at: string
 }
 
+export interface AssetPosition {
+  asset: InvestmentAsset
+  net_invested: string
+  current_price: string | null
+  current_price_date: string | null
+  current_value: string | null
+  pnl: string | null
+  pnl_pct: string | null
+  has_prices: boolean
+  sparkline: { date: string; price: string }[]
+}
+
 export interface InvestmentPosition {
   asset: InvestmentAsset
   total_quantity: string
@@ -253,7 +265,7 @@ export const deleteFundTransfer = (id: number) =>
   api.delete(`/investments/fund-transfers/${id}`)
 
 export const fetchPositions = () =>
-  api.get<InvestmentPosition[]>('/investments/positions').then(r => r.data)
+  api.get<AssetPosition[]>("/investments/positions").then(r => r.data)
 
 export const createInvestmentTransaction = (data: {
   asset_id: number

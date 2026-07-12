@@ -307,3 +307,22 @@ class IsinLookupResult(BaseModel):
     ticker: Optional[str]
     asset_type: str
     found: bool
+
+
+class PricePoint(BaseModel):
+    date: date
+    price: Decimal
+
+
+class AssetPositionOut(BaseModel):
+    asset: InvestmentAssetOut
+    net_invested: Decimal
+    current_price: Optional[Decimal] = None
+    current_price_date: Optional[date] = None
+    current_value: Optional[Decimal] = None
+    pnl: Optional[Decimal] = None
+    pnl_pct: Optional[Decimal] = None
+    has_prices: bool
+    sparkline: list[PricePoint] = []
+
+    model_config = {"from_attributes": True}

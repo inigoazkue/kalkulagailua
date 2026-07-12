@@ -4,27 +4,29 @@ import {
   fetchPositions, fetchPortfolioHistory, fetchFundTransfers, fetchAssets,
   createAssetByIsin, lookupIsin, updateAsset, syncAssetPrices,
   createFundTransfer, updateFundTransfer, deleteFundTransfer,
-  InvestmentPosition, InvestmentAsset, FundTransfer, IsinLookupResult,
+  AssetPosition, InvestmentAsset, FundTransfer, IsinLookupResult,
 } from '../api/client'
-import { Plus, X, TrendingUp, TrendingDown, RefreshCw, Pencil, Trash2, ArrowRightLeft } from 'lucide-react'
+import { Plus, X, TrendingUp, TrendingDown, RefreshCw, Pencil, Trash2, ArrowRightLeft, AlertCircle } from 'lucide-react'
 import { clsx } from 'clsx'
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from 'recharts'
 import PrivacyToggle from '../components/PrivacyToggle'
 import { Sensitive, SensitiveBlock } from '../components/Sensitive'
 import { fmtDateEs } from '../utils/format'
 
 const fmt = (val: string | number, decimals = 2) =>
-  Number(val).toLocaleString('es', {
-    style: 'currency',
-    currency: 'EUR',
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  })
+  Number(val).toLocaleString('es', { style: 'currency', currency: 'EUR', minimumFractionDigits: decimals, maximumFractionDigits: decimals })
 
 const fmtPct = (val: string | number) =>
   `${Number(val) >= 0 ? '+' : ''}${Number(val).toFixed(2)}%`
+
+const fmtPrice = (val: string | number) => {
+  const n = Number(val)
+  return n >= 100
+    ? n.toLocaleString('es', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : n.toLocaleString('es', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 4 })
+}
 
 const ASSET_TYPE_CONFIG: Record<string, { label: string; color: string; badgeClass: string }> = {
   etf:    { label: 'ETF',    color: '#3b82f6', badgeClass: 'bg-blue-500/20 text-blue-300' },
@@ -42,39 +44,28 @@ function AssetTypeBadge({ type }: { type: string }) {
   )
 }
 
-// ─── Add Asset Modal (ISIN flow) ────────────────────────────────────────────
+// ─── Add Asset Modal ──────────────────────────────────────────────────────────
 
 function AddAssetModal({ onClose }: { onClose: () => void }) {
   const [isin, setIsin] = useState('')
   const [alias, setAlias] = useState('')
   const [lookupResult, setLookupResult] = useState<IsinLookupResult | null>(null)
-  const [manualName, setManualName] = useState('')
-  const [manualType, setManualType] = useState('etf')
   const [looked, setLooked] = useState(false)
   const qc = useQueryClient()
 
   const lookupMutation = useMutation({
     mutationFn: () => lookupIsin(isin.trim().toUpperCase()),
-    onSuccess: (res) => {
-      setLookupResult(res)
-      setLooked(true)
-      if (!res.found) {
-        setManualName('')
-        setManualType('etf')
-      }
-    },
+    onSuccess: (res) => { setLookupResult(res); setLooked(true) },
   })
 
   const createMutation = useMutation({
     mutationFn: () => createAssetByIsin(isin.trim().toUpperCase(), alias.trim() || undefined),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['assets'] })
       qc.invalidateQueries({ queryKey: ['positions'] })
+      qc.invalidateQueries({ queryKey: ['assets'] })
       onClose()
     },
   })
-
-  const canCreate = looked && isin.trim().length >= 12
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
@@ -83,86 +74,48 @@ function AddAssetModal({ onClose }: { onClose: () => void }) {
           <h3 className="font-semibold text-white">Añadir activo por ISIN</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-white"><X size={20} /></button>
         </div>
-
-        {/* ISIN input + lookup */}
         <div className="flex gap-2">
           <input
-            type="text"
-            value={isin}
+            type="text" value={isin}
             onChange={e => { setIsin(e.target.value.toUpperCase()); setLooked(false); setLookupResult(null) }}
-            placeholder="Ej: IE00B4L5Y983"
-            maxLength={12}
+            placeholder="Ej: IE00B4L5Y983" maxLength={12}
             className="flex-1 bg-slate-700 text-white text-sm rounded-lg px-3 py-2 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
           />
           <button
             onClick={() => lookupMutation.mutate()}
             disabled={isin.trim().length < 12 || lookupMutation.isPending}
-            className="px-3 py-2 text-sm bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-white rounded-lg transition-colors border border-slate-600"
+            className="px-3 py-2 text-sm bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-white rounded-lg border border-slate-600"
           >
             {lookupMutation.isPending ? '...' : 'Buscar'}
           </button>
         </div>
-
-        {/* Lookup result */}
         {lookupResult && (
-          <div className={clsx('rounded-lg p-3 text-sm space-y-1', lookupResult.found ? 'bg-green-900/20 border border-green-700/40' : 'bg-amber-900/20 border border-amber-700/40')}>
+          <div className={clsx('rounded-lg p-3 text-sm', lookupResult.found ? 'bg-green-900/20 border border-green-700/40' : 'bg-amber-900/20 border border-amber-700/40')}>
             {lookupResult.found ? (
               <>
                 <p className="text-green-300 font-medium">{lookupResult.name}</p>
-                <div className="flex gap-3 text-xs text-slate-400">
+                <div className="flex gap-3 text-xs text-slate-400 mt-1">
                   {lookupResult.ticker && <span>Ticker: <span className="text-slate-200 font-mono">{lookupResult.ticker}</span></span>}
                   <span>Tipo: <span className="text-slate-200">{ASSET_TYPE_CONFIG[lookupResult.asset_type]?.label ?? lookupResult.asset_type}</span></span>
                 </div>
               </>
             ) : (
-              <>
-                <p className="text-amber-300">ISIN no encontrado automáticamente.</p>
-                <div className="space-y-2 mt-2">
-                  <input
-                    type="text"
-                    value={manualName}
-                    onChange={e => setManualName(e.target.value)}
-                    placeholder="Nombre del activo"
-                    className="w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-1.5 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                  <select
-                    value={manualType}
-                    onChange={e => setManualType(e.target.value)}
-                    className="w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-1.5 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  >
-                    <option value="etf">ETF</option>
-                    <option value="stock">Acción</option>
-                    <option value="fund">Fondo</option>
-                    <option value="crypto">Crypto</option>
-                  </select>
-                </div>
-              </>
+              <p className="text-amber-300">ISIN no encontrado. Se guardará solo con el ISIN como nombre.</p>
             )}
           </div>
         )}
-
-        {/* Alias */}
         <div>
           <label className="block text-xs text-slate-400 mb-1">Alias (opcional)</label>
-          <input
-            type="text"
-            value={alias}
-            onChange={e => setAlias(e.target.value)}
-            placeholder="Ej: MSCI World"
-            className="w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-2 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
+          <input type="text" value={alias} onChange={e => setAlias(e.target.value)} placeholder="Ej: MSCI World"
+            className="w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-2 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" />
         </div>
-
-        {createMutation.isError && (
-          <p className="text-red-400 text-xs">Error al añadir activo</p>
-        )}
-
+        {createMutation.isError && <p className="text-red-400 text-xs">Error al añadir activo</p>}
         <div className="flex justify-end gap-2">
           <button onClick={onClose} className="px-4 py-2 text-sm text-slate-400 hover:text-white">Cancelar</button>
           <button
             onClick={() => createMutation.mutate()}
-            disabled={!canCreate || createMutation.isPending}
-            className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg transition-colors"
+            disabled={!looked || isin.trim().length < 12 || createMutation.isPending}
+            className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg"
           >
             {createMutation.isPending ? 'Añadiendo...' : 'Añadir'}
           </button>
@@ -172,7 +125,7 @@ function AddAssetModal({ onClose }: { onClose: () => void }) {
   )
 }
 
-// ─── Edit Asset Modal ────────────────────────────────────────────────────────
+// ─── Edit Asset Modal ─────────────────────────────────────────────────────────
 
 function EditAssetModal({ asset, onClose }: { asset: InvestmentAsset; onClose: () => void }) {
   const [name, setName] = useState(asset.name)
@@ -191,8 +144,8 @@ function EditAssetModal({ asset, onClose }: { asset: InvestmentAsset; onClose: (
       asset_type: assetType,
     }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['assets'] })
       qc.invalidateQueries({ queryKey: ['positions'] })
+      qc.invalidateQueries({ queryKey: ['assets'] })
       onClose()
     },
   })
@@ -209,22 +162,17 @@ function EditAssetModal({ asset, onClose }: { asset: InvestmentAsset; onClose: (
           <h3 className="font-semibold text-white">Editar activo</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-white"><X size={20} /></button>
         </div>
-
         <div className="space-y-3">
-          {[
-            { label: 'Nombre', value: name, set: setName },
-            { label: 'Ticker', value: ticker, set: setTicker },
-            { label: 'ISIN', value: isin, set: setIsin },
-            { label: 'Alias', value: alias, set: setAlias },
-          ].map(({ label, value, set }) => (
+          {([
+            ['Nombre', name, setName],
+            ['Ticker', ticker, setTicker],
+            ['ISIN', isin, setIsin],
+            ['Alias', alias, setAlias],
+          ] as [string, string, (v: string) => void][]).map(([label, value, set]) => (
             <div key={label}>
               <label className="block text-xs text-slate-400 mb-1">{label}</label>
-              <input
-                type="text"
-                value={value}
-                onChange={e => set(e.target.value)}
-                className="w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-2 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
+              <input type="text" value={value} onChange={e => set(e.target.value)}
+                className="w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-2 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" />
             </div>
           ))}
           <div>
@@ -241,12 +189,11 @@ function EditAssetModal({ asset, onClose }: { asset: InvestmentAsset; onClose: (
             </select>
           </div>
         </div>
-
         <div className="flex items-center justify-between pt-1">
           <button
             onClick={() => syncMutation.mutate()}
             disabled={syncMutation.isPending}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg border border-slate-600 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg border border-slate-600"
           >
             <RefreshCw size={12} className={syncMutation.isPending ? 'animate-spin' : ''} />
             {syncMutation.isPending ? 'Sincronizando...' : 'Sincronizar precios'}
@@ -256,7 +203,7 @@ function EditAssetModal({ asset, onClose }: { asset: InvestmentAsset; onClose: (
             <button
               onClick={() => updateMutation.mutate()}
               disabled={updateMutation.isPending}
-              className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg transition-colors"
+              className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg"
             >
               {updateMutation.isPending ? 'Guardando...' : 'Guardar'}
             </button>
@@ -267,7 +214,142 @@ function EditAssetModal({ asset, onClose }: { asset: InvestmentAsset; onClose: (
   )
 }
 
-// ─── Portfolio History Chart ─────────────────────────────────────────────────
+// ─── Asset Card ───────────────────────────────────────────────────────────────
+
+function AssetCard({ pos, onEdit }: { pos: AssetPosition; onEdit: () => void }) {
+  const qc = useQueryClient()
+  const pnl = pos.pnl !== null ? Number(pos.pnl) : null
+  const pnlPct = pos.pnl_pct !== null ? Number(pos.pnl_pct) : null
+  const isPositive = pnl !== null ? pnl >= 0 : null
+  const label = pos.asset.alias ?? pos.asset.ticker ?? pos.asset.name
+  const sparklineColor = isPositive === null ? '#64748b' : isPositive ? '#22c55e' : '#ef4444'
+
+  const syncMutation = useMutation({
+    mutationFn: () => syncAssetPrices(pos.asset.id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['positions'] }),
+  })
+
+  return (
+    <div className="bg-slate-800 rounded-xl overflow-hidden flex flex-col">
+      {/* Header */}
+      <div className="px-4 pt-4 pb-2 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <AssetTypeBadge type={pos.asset.asset_type} />
+          </div>
+          <h3 className="font-semibold text-white text-sm leading-tight truncate" title={pos.asset.name}>
+            {label}
+          </h3>
+          {pos.asset.alias && (
+            <p className="text-xs text-slate-500 truncate mt-0.5">{pos.asset.name}</p>
+          )}
+          <p className="text-xs text-slate-600 font-mono mt-0.5">
+            {pos.asset.isin ?? pos.asset.ticker ?? '—'}
+          </p>
+        </div>
+        <div className="flex items-center gap-0.5 shrink-0">
+          <button
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending}
+            title="Sincronizar precios"
+            className="p-1.5 text-slate-500 hover:text-blue-400 transition-colors"
+          >
+            <RefreshCw size={13} className={syncMutation.isPending ? 'animate-spin' : ''} />
+          </button>
+          <button onClick={onEdit} title="Editar" className="p-1.5 text-slate-500 hover:text-slate-200 transition-colors">
+            <Pencil size={13} />
+          </button>
+        </div>
+      </div>
+
+      {/* Sparkline */}
+      <div className="px-2 h-[80px]">
+        {pos.sparkline.length > 1 ? (
+          <SensitiveBlock>
+            <ResponsiveContainer width="100%" height={80}>
+              <AreaChart data={pos.sparkline} margin={{ top: 4, right: 2, left: 2, bottom: 0 }}>
+                <defs>
+                  <linearGradient id={`grad-${pos.asset.id}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={sparklineColor} stopOpacity={0.3} />
+                    <stop offset="95%" stopColor={sparklineColor} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Tooltip
+                  formatter={(v: number) => [fmtPrice(v), 'Precio']}
+                  labelFormatter={l => fmtDateEs(l as string)}
+                  contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: 11 }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="price"
+                  stroke={sparklineColor}
+                  strokeWidth={1.5}
+                  fill={`url(#grad-${pos.asset.id})`}
+                  dot={false}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </SensitiveBlock>
+        ) : (
+          <div className="h-full flex items-center justify-center gap-2 text-slate-600">
+            <AlertCircle size={14} />
+            <span className="text-xs">Sin datos de precio</span>
+          </div>
+        )}
+      </div>
+
+      {/* Current price */}
+      {pos.current_price !== null && (
+        <div className="px-4 py-2 flex items-baseline gap-2">
+          <Sensitive>
+            <span className="text-lg font-bold text-white">{fmtPrice(pos.current_price)}</span>
+          </Sensitive>
+          {pnlPct !== null && (
+            <span className={clsx('text-xs font-mono', isPositive ? 'text-green-400' : 'text-red-400')}>
+              {fmtPct(pnlPct)}
+            </span>
+          )}
+          {pos.current_price_date && (
+            <span className="text-xs text-slate-600 ml-auto">{fmtDateEs(pos.current_price_date)}</span>
+          )}
+        </div>
+      )}
+
+      {/* Stats */}
+      <div className="px-4 pb-4 mt-auto space-y-1.5 border-t border-slate-700/50 pt-3">
+        <div className="flex justify-between text-xs">
+          <span className="text-slate-400">Invertido</span>
+          <Sensitive><span className="text-slate-200 font-mono">{fmt(pos.net_invested)}</span></Sensitive>
+        </div>
+        {pos.current_value !== null ? (
+          <>
+            <div className="flex justify-between text-xs">
+              <span className="text-slate-400">Valor actual</span>
+              <Sensitive><span className="text-white font-mono font-medium">{fmt(pos.current_value)}</span></Sensitive>
+            </div>
+            {pnl !== null && (
+              <div className="flex justify-between text-xs">
+                <span className="text-slate-400">P&amp;L</span>
+                <div className="flex items-center gap-1.5">
+                  {isPositive ? <TrendingUp size={12} className="text-green-400" /> : <TrendingDown size={12} className="text-red-400" />}
+                  <Sensitive>
+                    <span className={clsx('font-mono font-medium', isPositive ? 'text-green-400' : 'text-red-400')}>
+                      {fmt(pnl)}
+                    </span>
+                  </Sensitive>
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="text-xs text-slate-600 italic">Valor no calculable (sin precios)</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Portfolio Chart ──────────────────────────────────────────────────────────
 
 const PERIODS = [
   { label: '1M', days: 30 },
@@ -278,7 +360,7 @@ const PERIODS = [
 ]
 
 function PortfolioChart() {
-  const [period, setPeriod] = useState(1) // index into PERIODS
+  const [period, setPeriod] = useState(3)
 
   const startDate = useMemo(() => {
     const days = PERIODS[period].days
@@ -314,14 +396,13 @@ function PortfolioChart() {
           ))}
         </div>
       </div>
-
       {allZero || history.length === 0 ? (
-        <div className="flex items-center justify-center h-[200px] text-slate-500 text-sm">
-          Sin datos históricos para este periodo
+        <div className="flex items-center justify-center h-[180px] text-slate-500 text-sm">
+          Sin datos (valida transacciones en "Inv. pendientes")
         </div>
       ) : (
         <SensitiveBlock>
-          <ResponsiveContainer width="100%" height={200}>
+          <ResponsiveContainer width="100%" height={180}>
             <AreaChart data={history} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="gradValue" x1="0" y1="0" x2="0" y2="1">
@@ -349,7 +430,7 @@ function PortfolioChart() {
                 tick={{ fontSize: 11, fill: '#94a3b8' }}
                 axisLine={false}
                 tickLine={false}
-                width={40}
+                width={36}
               />
               <Tooltip
                 formatter={(v: number, name: string) => [fmt(v), name === 'value' ? 'Valor' : 'Aportaciones']}
@@ -366,140 +447,7 @@ function PortfolioChart() {
   )
 }
 
-// ─── Allocation Pie ──────────────────────────────────────────────────────────
-
-function AllocationPie({ positions, totalValue }: { positions: InvestmentPosition[]; totalValue: number }) {
-  const grouped: Record<string, number> = {}
-  for (const p of positions) {
-    const t = p.asset.asset_type
-    grouped[t] = (grouped[t] ?? 0) + Number(p.current_value)
-  }
-  const data = Object.entries(grouped)
-    .map(([type, value]) => ({ name: ASSET_TYPE_CONFIG[type]?.label ?? type, value, color: ASSET_TYPE_CONFIG[type]?.color ?? '#64748b' }))
-    .sort((a, b) => b.value - a.value)
-
-  if (data.length === 0) return null
-  return (
-    <div className="bg-slate-800 rounded-xl p-5">
-      <h3 className="text-sm font-medium text-slate-300 mb-4">Distribución por tipo</h3>
-      <SensitiveBlock>
-        <ResponsiveContainer width="100%" height={200}>
-          <PieChart>
-            <Pie data={data} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={75}
-              label={({ percent }) => percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''} labelLine={false}>
-              {data.map((e, i) => <Cell key={i} fill={e.color} />)}
-            </Pie>
-            <Tooltip
-              formatter={(v: number) => [`${fmt(v)} · ${totalValue > 0 ? ((v / totalValue) * 100).toFixed(1) : 0}%`]}
-              contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', fontSize: 12 }}
-            />
-            <Legend formatter={v => <span style={{ color: '#94a3b8', fontSize: 12 }}>{v}</span>} />
-          </PieChart>
-        </ResponsiveContainer>
-      </SensitiveBlock>
-    </div>
-  )
-}
-
-// ─── Top Holdings ────────────────────────────────────────────────────────────
-
-function TopHoldings({ positions, totalValue }: { positions: InvestmentPosition[]; totalValue: number }) {
-  const sorted = [...positions].sort((a, b) => Number(b.current_value) - Number(a.current_value)).slice(0, 5)
-  return (
-    <div className="bg-slate-800 rounded-xl p-5">
-      <h3 className="text-sm font-medium text-slate-300 mb-4">Principales posiciones</h3>
-      <div className="space-y-3">
-        {sorted.map(pos => {
-          const pct = totalValue > 0 ? (Number(pos.current_value) / totalValue) * 100 : 0
-          const isPositive = Number(pos.pnl) >= 0
-          const label = pos.asset.alias ?? pos.asset.ticker ?? pos.asset.name
-          return (
-            <div key={pos.asset.id} className="flex items-center gap-3">
-              <div className="w-24 shrink-0 truncate text-xs font-semibold text-white">{label}</div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs text-slate-400 truncate">{pos.asset.name}</span>
-                  <span className="text-xs font-mono text-slate-300 ml-2 shrink-0"><Sensitive>{fmt(pos.current_value)}</Sensitive></span>
-                </div>
-                <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                  <div className={clsx('h-full rounded-full', isPositive ? 'bg-blue-500' : 'bg-slate-500')} style={{ width: `${Math.min(pct, 100)}%` }} />
-                </div>
-              </div>
-              <div className="w-10 shrink-0 text-right text-xs text-slate-400">{pct.toFixed(1)}%</div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-// ─── Position Row ────────────────────────────────────────────────────────────
-
-function PositionRow({ pos, totalValue, onEdit }: { pos: InvestmentPosition; totalValue: number; onEdit: () => void }) {
-  const qc = useQueryClient()
-  const pnl = Number(pos.pnl)
-  const pnlPct = Number(pos.pnl_pct)
-  const currentValue = Number(pos.current_value)
-  const isPositive = pnl >= 0
-  const weight = totalValue > 0 ? (currentValue / totalValue) * 100 : 0
-  const label = pos.asset.alias ?? pos.asset.ticker ?? pos.asset.name
-
-  const syncMutation = useMutation({
-    mutationFn: () => syncAssetPrices(pos.asset.id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['positions'] }),
-  })
-
-  return (
-    <tr className="border-b border-slate-700/50 hover:bg-slate-700/20 transition-colors">
-      <td className="px-4 py-3.5">
-        <div className="flex flex-col">
-          <span className="font-semibold text-white text-sm">{label}</span>
-          {pos.asset.alias && <span className="text-xs text-slate-500 truncate max-w-[160px]">{pos.asset.name}</span>}
-          {pos.asset.isin && <span className="text-xs text-slate-600 font-mono">{pos.asset.isin}</span>}
-        </div>
-      </td>
-      <td className="px-4 py-3.5"><AssetTypeBadge type={pos.asset.asset_type} /></td>
-      <td className="px-4 py-3.5 text-sm font-mono text-slate-300"><Sensitive>{fmt(pos.cost_basis)}</Sensitive></td>
-      <td className="px-4 py-3.5 text-sm font-mono text-slate-300"><Sensitive>{fmt(pos.current_price, 4)}</Sensitive></td>
-      <td className="px-4 py-3.5 text-sm font-mono text-white font-medium"><Sensitive>{fmt(currentValue)}</Sensitive></td>
-      <td className="px-4 py-3.5">
-        <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-1">
-            {isPositive ? <TrendingUp size={13} className="text-green-400 shrink-0" /> : <TrendingDown size={13} className="text-red-400 shrink-0" />}
-            <span className={clsx('text-sm font-mono font-medium', isPositive ? 'text-green-400' : 'text-red-400')}>
-              <Sensitive>{fmt(pnl)}</Sensitive>
-            </span>
-          </div>
-          <span className={clsx('text-xs font-mono ml-4', isPositive ? 'text-green-500/70' : 'text-red-500/70')}>
-            <Sensitive>{fmtPct(pnlPct)}</Sensitive>
-          </span>
-        </div>
-      </td>
-      <td className="px-4 py-3.5">
-        <div className="flex items-center gap-2 min-w-[80px]">
-          <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-            <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(weight, 100)}%` }} />
-          </div>
-          <span className="text-xs text-slate-400 w-9 text-right">{weight.toFixed(1)}%</span>
-        </div>
-      </td>
-      <td className="px-4 py-3.5">
-        <div className="flex items-center gap-1">
-          <button onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending} title="Sincronizar precios"
-            className="p-1.5 text-slate-400 hover:text-blue-400 transition-colors">
-            <RefreshCw size={14} className={syncMutation.isPending ? 'animate-spin' : ''} />
-          </button>
-          <button onClick={onEdit} title="Editar" className="p-1.5 text-slate-400 hover:text-slate-200 transition-colors">
-            <Pencil size={14} />
-          </button>
-        </div>
-      </td>
-    </tr>
-  )
-}
-
-// ─── Fund Transfer Modal ─────────────────────────────────────────────────────
+// ─── Fund Transfer Modal ──────────────────────────────────────────────────────
 
 function FundTransferModal({ transfer, assets, onClose }: {
   transfer?: FundTransfer
@@ -531,7 +479,11 @@ function FundTransferModal({ transfer, assets, onClose }: {
 
   const mutation = useMutation({
     mutationFn: () => transfer ? updateFundTransfer(transfer.id, payload()) : createFundTransfer(payload()),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['fund-transfers'] }); onClose() },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['fund-transfers'] })
+      qc.invalidateQueries({ queryKey: ['positions'] })
+      onClose()
+    },
   })
 
   const assetLabel = (a: InvestmentAsset) => a.alias ?? a.ticker ?? a.name
@@ -544,67 +496,50 @@ function FundTransferModal({ transfer, assets, onClose }: {
           <button onClick={onClose} className="text-slate-400 hover:text-white"><X size={20} /></button>
         </div>
 
-        {/* Assets */}
         <div className="grid grid-cols-2 gap-3">
-          {[
-            { label: 'Desde', value: fromId, set: setFromId },
-            { label: 'Hasta', value: toId, set: setToId },
-          ].map(({ label, value, set }) => (
+          {([
+            ['Desde', fromId, setFromId],
+            ['Hasta', toId, setToId],
+          ] as [string, number, (v: number) => void][]).map(([label, value, set]) => (
             <div key={label}>
               <label className="block text-xs text-slate-400 mb-1">{label}</label>
-              <select value={value} onChange={e => set(Number(e.target.value))}
-                className="w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-2 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500">
+              <select
+                value={value}
+                onChange={e => set(Number(e.target.value))}
+                className="w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-2 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
                 {assets.map(a => <option key={a.id} value={a.id}>{assetLabel(a)}</option>)}
               </select>
             </div>
           ))}
         </div>
 
-        {/* Withdrawal */}
-        <div className="bg-slate-700/40 rounded-xl p-4 space-y-3">
-          <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Salida</p>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">Fecha salida</label>
-              <input type="date" value={withdrawalDate} onChange={e => setWithdrawalDate(e.target.value)}
-                className="w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-2 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">Importe salida (€)</label>
-              <input type="number" step="0.01" value={withdrawalAmount} onChange={e => setWithdrawalAmount(e.target.value)}
-                className="w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-2 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">Comisión salida (€)</label>
-              <input type="number" step="0.01" value={exitFee} onChange={e => setExitFee(e.target.value)}
-                className="w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-2 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-            </div>
-          </div>
-        </div>
-
-        {/* Arrival */}
-        <div className="bg-slate-700/40 rounded-xl p-4 space-y-3">
-          <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Llegada</p>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">Fecha llegada</label>
-              <input type="date" value={arrivalDate} onChange={e => setArrivalDate(e.target.value)}
-                className="w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-2 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">Importe llegada (€)</label>
-              <input type="number" step="0.01" value={arrivalAmount} onChange={e => setArrivalAmount(e.target.value)}
-                className="w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-2 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">Comisión entrada (€)</label>
-              <input type="number" step="0.01" value={entryFee} onChange={e => setEntryFee(e.target.value)}
-                className="w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-2 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+        {[
+          { label: 'Salida', dateVal: withdrawalDate, setDate: setWithdrawalDate, amountVal: withdrawalAmount, setAmount: setWithdrawalAmount, feeVal: exitFee, setFee: setExitFee },
+          { label: 'Llegada', dateVal: arrivalDate, setDate: setArrivalDate, amountVal: arrivalAmount, setAmount: setArrivalAmount, feeVal: entryFee, setFee: setEntryFee },
+        ].map(({ label, dateVal, setDate, amountVal, setAmount, feeVal, setFee }) => (
+          <div key={label} className="bg-slate-700/40 rounded-xl p-4 space-y-3">
+            <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">{label}</p>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Fecha</label>
+                <input type="date" value={dateVal} onChange={e => setDate(e.target.value)}
+                  className="w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-2 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Importe (€)</label>
+                <input type="number" step="0.01" value={amountVal} onChange={e => setAmount(e.target.value)}
+                  className="w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-2 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Comisión (€)</label>
+                <input type="number" step="0.01" value={feeVal} onChange={e => setFee(e.target.value)}
+                  className="w-full bg-slate-700 text-white text-sm rounded-lg px-3 py-2 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+              </div>
             </div>
           </div>
-        </div>
+        ))}
 
-        {/* Notes */}
         <div>
           <label className="block text-xs text-slate-400 mb-1">Notas</label>
           <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2}
@@ -613,8 +548,11 @@ function FundTransferModal({ transfer, assets, onClose }: {
 
         <div className="flex justify-end gap-2">
           <button onClick={onClose} className="px-4 py-2 text-sm text-slate-400 hover:text-white">Cancelar</button>
-          <button onClick={() => mutation.mutate()} disabled={mutation.isPending || !withdrawalAmount || !arrivalAmount}
-            className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg transition-colors">
+          <button
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending || !withdrawalAmount || !arrivalAmount}
+            className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg"
+          >
             {mutation.isPending ? 'Guardando...' : 'Guardar'}
           </button>
         </div>
@@ -623,7 +561,7 @@ function FundTransferModal({ transfer, assets, onClose }: {
   )
 }
 
-// ─── Fund Transfers Section ──────────────────────────────────────────────────
+// ─── Fund Transfers Section ───────────────────────────────────────────────────
 
 function FundTransfersSection({ assets }: { assets: InvestmentAsset[] }) {
   const qc = useQueryClient()
@@ -635,11 +573,17 @@ function FundTransfersSection({ assets }: { assets: InvestmentAsset[] }) {
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteFundTransfer(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['fund-transfers'] }); setDeletingId(null) },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['fund-transfers'] })
+      qc.invalidateQueries({ queryKey: ['positions'] })
+      setDeletingId(null)
+    },
   })
 
   const assetLabel = (a: { id: number; ticker: string | null; name: string; isin: string | null; alias: string | null }) =>
     a.alias ?? a.ticker ?? a.name
+
+  if (transfers.length === 0 && assets.length < 2) return null
 
   return (
     <div className="bg-slate-800 rounded-xl overflow-hidden">
@@ -648,49 +592,60 @@ function FundTransfersSection({ assets }: { assets: InvestmentAsset[] }) {
           <ArrowRightLeft size={16} className="text-slate-400" />
           <h3 className="text-sm font-medium text-slate-300">Traspasos entre fondos</h3>
         </div>
-        <button onClick={() => { setEditing(undefined); setShowModal(true) }}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg border border-slate-600 transition-colors">
-          <Plus size={13} />
-          Nuevo traspaso
-        </button>
+        {assets.length >= 2 && (
+          <button
+            onClick={() => { setEditing(undefined); setShowModal(true) }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg border border-slate-600"
+          >
+            <Plus size={13} />
+            Nuevo traspaso
+          </button>
+        )}
       </div>
 
       {transfers.length === 0 ? (
-        <div className="py-10 text-center text-slate-500 text-sm">Sin traspasos registrados</div>
+        <div className="py-8 text-center text-slate-500 text-sm">Sin traspasos registrados</div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-700">
-                {['Desde', 'Hasta', 'Fecha salida', 'Importe salida', 'Com. salida', 'Fecha llegada', 'Importe llegada', 'Com. entrada', ''].map(h => (
+                {['Desde', 'Hasta', 'F. salida', 'Salida', 'Com.', 'F. llegada', 'Llegada', 'Com.', ''].map(h => (
                   <th key={h} className="text-left text-xs font-medium text-slate-400 uppercase tracking-wide px-4 py-3">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {transfers.map(t => (
-                <tr key={t.id} className="border-b border-slate-700/50 hover:bg-slate-700/20 transition-colors">
+                <tr key={t.id} className="border-b border-slate-700/50 hover:bg-slate-700/20">
                   <td className="px-4 py-3 text-sm text-slate-300">{assetLabel(t.from_asset)}</td>
                   <td className="px-4 py-3 text-sm text-slate-300">{assetLabel(t.to_asset)}</td>
                   <td className="px-4 py-3 text-sm text-slate-400">{fmtDateEs(t.withdrawal_date)}</td>
                   <td className="px-4 py-3 text-sm font-mono text-slate-300"><Sensitive>{fmt(t.withdrawal_amount)}</Sensitive></td>
-                  <td className="px-4 py-3 text-sm font-mono text-slate-400"><Sensitive>{fmt(t.exit_fee)}</Sensitive></td>
+                  <td className="px-4 py-3 text-sm font-mono text-slate-500"><Sensitive>{fmt(t.exit_fee)}</Sensitive></td>
                   <td className="px-4 py-3 text-sm text-slate-400">{fmtDateEs(t.arrival_date)}</td>
                   <td className="px-4 py-3 text-sm font-mono text-slate-300"><Sensitive>{fmt(t.arrival_amount)}</Sensitive></td>
-                  <td className="px-4 py-3 text-sm font-mono text-slate-400"><Sensitive>{fmt(t.entry_fee)}</Sensitive></td>
+                  <td className="px-4 py-3 text-sm font-mono text-slate-500"><Sensitive>{fmt(t.entry_fee)}</Sensitive></td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
-                      <button onClick={() => { setEditing(t); setShowModal(true) }} className="p-1.5 text-slate-400 hover:text-slate-200 transition-colors"><Pencil size={14} /></button>
+                      <button onClick={() => { setEditing(t); setShowModal(true) }} className="p-1.5 text-slate-400 hover:text-slate-200">
+                        <Pencil size={14} />
+                      </button>
                       {deletingId === t.id ? (
                         <>
-                          <button onClick={() => deleteMutation.mutate(t.id)} disabled={deleteMutation.isPending}
-                            className="text-xs px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded transition-colors">
+                          <button
+                            onClick={() => deleteMutation.mutate(t.id)}
+                            disabled={deleteMutation.isPending}
+                            className="text-xs px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded"
+                          >
                             {deleteMutation.isPending ? '...' : 'Confirmar'}
                           </button>
                           <button onClick={() => setDeletingId(null)} className="text-xs px-2 py-1 text-slate-400 hover:text-slate-200">Cancelar</button>
                         </>
                       ) : (
-                        <button onClick={() => setDeletingId(t.id)} className="p-1.5 text-slate-400 hover:text-red-400 transition-colors"><Trash2 size={14} /></button>
+                        <button onClick={() => setDeletingId(t.id)} className="p-1.5 text-slate-400 hover:text-red-400">
+                          <Trash2 size={14} />
+                        </button>
                       )}
                     </div>
                   </td>
@@ -712,7 +667,7 @@ function FundTransfersSection({ assets }: { assets: InvestmentAsset[] }) {
   )
 }
 
-// ─── Main Page ───────────────────────────────────────────────────────────────
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Investments() {
   const [showAddModal, setShowAddModal] = useState(false)
@@ -721,11 +676,11 @@ export default function Investments() {
   const { data: positions = [], isLoading } = useQuery({ queryKey: ['positions'], queryFn: fetchPositions })
   const { data: assets = [] } = useQuery({ queryKey: ['assets'], queryFn: fetchAssets })
 
-  const totalCostBasis = positions.reduce((s, p) => s + Number(p.cost_basis), 0)
-  const totalCurrentValue = positions.reduce((s, p) => s + Number(p.current_value), 0)
-  const totalPnl = totalCurrentValue - totalCostBasis
-  const totalPnlPct = totalCostBasis > 0 ? (totalPnl / totalCostBasis) * 100 : 0
-  const sortedPositions = [...positions].sort((a, b) => Number(b.current_value) - Number(a.current_value))
+  const totalInvested = positions.reduce((s, p) => s + Number(p.net_invested), 0)
+  const totalValue = positions.reduce((s, p) => s + (p.current_value !== null ? Number(p.current_value) : Number(p.net_invested)), 0)
+  const totalPnl = positions.reduce((s, p) => s + (p.pnl !== null ? Number(p.pnl) : 0), 0)
+  const totalPnlPct = totalInvested > 0 ? (totalPnl / totalInvested) * 100 : 0
+  const isGlobalPositive = totalPnl >= 0
 
   return (
     <div className="space-y-6">
@@ -734,8 +689,10 @@ export default function Investments() {
         <h2 className="text-xl font-semibold text-white">Inversiones</h2>
         <div className="flex items-center gap-2">
           <PrivacyToggle />
-          <button onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg transition-colors">
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm rounded-lg"
+          >
             <Plus size={16} />
             Añadir activo
           </button>
@@ -746,90 +703,44 @@ export default function Investments() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-slate-800 rounded-xl p-4">
           <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">Capital invertido</p>
-          <p className="text-xl font-bold text-white"><Sensitive>{fmt(totalCostBasis)}</Sensitive></p>
+          <p className="text-xl font-bold text-white"><Sensitive>{fmt(totalInvested)}</Sensitive></p>
         </div>
         <div className="bg-slate-800 rounded-xl p-4">
           <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">Valor actual</p>
-          <p className="text-xl font-bold text-white"><Sensitive>{fmt(totalCurrentValue)}</Sensitive></p>
+          <p className="text-xl font-bold text-white"><Sensitive>{fmt(totalValue)}</Sensitive></p>
         </div>
-        <div className={clsx('rounded-xl p-4', totalPnl >= 0 ? 'bg-green-900/30' : 'bg-red-900/30')}>
-          <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">P&L Total</p>
-          <p className={clsx('text-xl font-bold', totalPnl >= 0 ? 'text-green-400' : 'text-red-400')}>
+        <div className={clsx('rounded-xl p-4', isGlobalPositive ? 'bg-green-900/30' : 'bg-red-900/30')}>
+          <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">P&amp;L Total</p>
+          <p className={clsx('text-xl font-bold', isGlobalPositive ? 'text-green-400' : 'text-red-400')}>
             <Sensitive>{fmt(totalPnl)}</Sensitive>
           </p>
         </div>
-        <div className={clsx('rounded-xl p-4', totalPnlPct >= 0 ? 'bg-green-900/30' : 'bg-red-900/30')}>
+        <div className={clsx('rounded-xl p-4', isGlobalPositive ? 'bg-green-900/30' : 'bg-red-900/30')}>
           <p className="text-xs text-slate-400 uppercase tracking-wide mb-1">Rentabilidad</p>
-          <p className={clsx('text-xl font-bold', totalPnlPct >= 0 ? 'text-green-400' : 'text-red-400')}>
+          <p className={clsx('text-xl font-bold', isGlobalPositive ? 'text-green-400' : 'text-red-400')}>
             <Sensitive>{fmtPct(totalPnlPct)}</Sensitive>
           </p>
         </div>
       </div>
 
-      {/* Portfolio history chart */}
+      {/* Portfolio evolution chart */}
       <PortfolioChart />
 
-      {/* Distribution + top holdings */}
-      {positions.length >= 2 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <AllocationPie positions={positions} totalValue={totalCurrentValue} />
-          <TopHoldings positions={positions} totalValue={totalCurrentValue} />
+      {/* Asset grid */}
+      {isLoading ? (
+        <div className="text-slate-400 text-sm">Cargando posiciones...</div>
+      ) : positions.length === 0 ? (
+        <div className="bg-slate-800 rounded-xl p-12 flex flex-col items-center gap-3 text-center">
+          <TrendingUp size={32} className="text-slate-600" />
+          <p className="text-slate-400 text-sm">No hay activos. Añade uno con su ISIN para empezar.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {positions.map(pos => (
+            <AssetCard key={pos.asset.id} pos={pos} onEdit={() => setEditingAsset(pos.asset)} />
+          ))}
         </div>
       )}
-
-      {/* Positions table */}
-      <div className="bg-slate-800 rounded-xl overflow-hidden">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-20 text-slate-400">Cargando posiciones...</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-700">
-                  {['Activo', 'Tipo', 'Coste', 'Precio actual', 'Valor', 'P&L', 'Peso', ''].map(h => (
-                    <th key={h} className="text-left text-xs font-medium text-slate-400 uppercase tracking-wide px-4 py-3">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {sortedPositions.map(pos => (
-                  <PositionRow key={pos.asset.id} pos={pos} totalValue={totalCurrentValue}
-                    onEdit={() => setEditingAsset(pos.asset)} />
-                ))}
-                {positions.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-14 text-center text-slate-400 text-sm">
-                      No hay posiciones. Añade un activo para empezar.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-              {positions.length > 1 && (
-                <tfoot>
-                  <tr className="border-t border-slate-600 bg-slate-900/30">
-                    <td colSpan={2} className="px-4 py-3 text-sm font-medium text-slate-300">Total</td>
-                    <td className="px-4 py-3 text-sm font-mono font-bold text-white"><Sensitive>{fmt(totalCostBasis)}</Sensitive></td>
-                    <td className="px-4 py-3" />
-                    <td className="px-4 py-3 text-sm font-mono font-bold text-white"><Sensitive>{fmt(totalCurrentValue)}</Sensitive></td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col gap-0.5">
-                        <span className={clsx('text-sm font-mono font-bold', totalPnl >= 0 ? 'text-green-400' : 'text-red-400')}>
-                          <Sensitive>{fmt(totalPnl)}</Sensitive>
-                        </span>
-                        <span className={clsx('text-xs font-mono', totalPnlPct >= 0 ? 'text-green-500/70' : 'text-red-500/70')}>
-                          <Sensitive>{fmtPct(totalPnlPct)}</Sensitive>
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-400 font-mono">100%</td>
-                    <td />
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
-        )}
-      </div>
 
       {/* Fund transfers */}
       <FundTransfersSection assets={assets} />
