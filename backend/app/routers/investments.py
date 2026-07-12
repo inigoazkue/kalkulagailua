@@ -51,8 +51,7 @@ async def create_asset(body: InvestmentAssetCreateByIsin, db: AsyncSession = Dep
     asset = InvestmentAsset(isin=isin, ticker=ticker, name=name, asset_type=asset_type, alias=body.alias)
     db.add(asset)
     await db.flush()
-    if ticker:
-        await fetch_and_store_history(asset, db)
+    await fetch_and_store_history(asset, db)
     await db.commit()
     await db.refresh(asset)
     return asset
