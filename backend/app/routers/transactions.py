@@ -98,6 +98,10 @@ async def get_analytics_data(
         filters.append(Transaction.date <= end)
     if account_id:
         filters.append(Transaction.account_id == account_id)
+    if bank:
+        filters.append(
+            Transaction.account_id.in_(select(Account.id).where(Account.bank == bank))
+        )
     if savings_only:
         filters.append(
             Transaction.account_id.in_(select(Account.id).where(Account.include_in_savings == True))
@@ -174,6 +178,7 @@ async def list_transactions(
     end: Optional[date] = None,
     category_id: Optional[int] = None,
     account_id: Optional[int] = None,
+    bank: Optional[str] = None,
     category_type: Optional[str] = None,
     metric: Optional[str] = None,
     page: int = Query(1, ge=1),

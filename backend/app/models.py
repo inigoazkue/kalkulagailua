@@ -100,7 +100,7 @@ class Category(Base):
         "CategoryKeyword", back_populates="category", cascade="all, delete-orphan"
     )
     transaction_assignments: Mapped[list["TransactionCategory"]] = relationship(
-        "TransactionCategory", back_populates="category"
+        "TransactionCategory", back_populates="category", cascade="all, delete-orphan"
     )
 
 

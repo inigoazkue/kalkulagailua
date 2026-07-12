@@ -218,7 +218,7 @@ export default function Transactions() {
   )
 
   const { data, isLoading } = useQuery({
-    queryKey: ['transactions', page, activeStart, activeEnd, accountId, categoryId, categoryType, metric],
+    queryKey: ['transactions', page, activeStart, activeEnd, accountId, bankId, categoryId, categoryType, metric],
     queryFn: () =>
       fetchTransactions({
         page,
@@ -226,6 +226,7 @@ export default function Transactions() {
         start: activeStart || undefined,
         end: activeEnd || undefined,
         account_id: accountId ? Number(accountId) : undefined,
+        bank: bankId || undefined,
         category_id: categoryId ? Number(categoryId) : undefined,
         category_type: categoryType || undefined,
         metric: metric || undefined,
@@ -402,39 +403,72 @@ export default function Transactions() {
         {isLoading ? (
           <div className="flex items-center justify-center py-20 text-slate-400">Cargando...</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                {table.getHeaderGroups().map(hg => (
-                  <tr key={hg.id} className="border-b border-slate-700">
-                    {hg.headers.map(h => (
-                      <th key={h.id} className="text-left text-xs font-medium text-slate-400 uppercase tracking-wide px-4 py-3">
-                        {flexRender(h.column.columnDef.header, h.getContext())}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-              <tbody>
-                {table.getRowModel().rows.map(row => (
-                  <tr key={row.id} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
-                    {row.getVisibleCells().map(cell => (
-                      <td key={cell.id} className="px-4 py-3 text-sm">
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          <>
+            {/* Mobile card list */}
+            <div className="md:hidden divide-y divide-slate-700/50">
+              {(data?.items ?? []).length === 0 ? (
+                <p className="px-4 py-12 text-center text-slate-400 text-sm">No hay transacciones</p>
+              ) : (
+                (data?.items ?? []).map(tx => {
+                  const acc = accounts.find(a => a.id === tx.account_id)
+                  const val = Number(tx.amount)
+                  return (
+                    <div key={tx.id} className="px-4 py-3 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-slate-200 break-words">{tx.description}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            {fmtDateEs(tx.date)}
+                            {acc && <span className="ml-1.5">· {acc.name}</span>}
+                          </p>
+                        </div>
+                        <Sensitive>
+                          <span className={clsx("font-mono font-medium text-sm shrink-0", val >= 0 ? "text-green-400" : "text-red-400")}>
+                            {fmt(tx.amount)}
+                          </span>
+                        </Sensitive>
+                      </div>
+                      <CategoryDropdown tx={tx} />
+                    </div>
+                  )
+                })
+              )}
+            </div>
+            {/* Desktop table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  {table.getHeaderGroups().map(hg => (
+                    <tr key={hg.id} className="border-b border-slate-700">
+                      {hg.headers.map(h => (
+                        <th key={h.id} className="text-left text-xs font-medium text-slate-400 uppercase tracking-wide px-4 py-3">
+                          {flexRender(h.column.columnDef.header, h.getContext())}
+                        </th>
+                      ))}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {table.getRowModel().rows.map(row => (
+                    <tr key={row.id} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
+                      {row.getVisibleCells().map(cell => (
+                        <td key={cell.id} className="px-4 py-3 text-sm">
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                  {table.getRowModel().rows.length === 0 && (
+                    <tr>
+                      <td colSpan={columns.length} className="px-4 py-12 text-center text-slate-400 text-sm">
+                        No hay transacciones
                       </td>
-                    ))}
-                  </tr>
-                ))}
-                {table.getRowModel().rows.length === 0 && (
-                  <tr>
-                    <td colSpan={columns.length} className="px-4 py-12 text-center text-slate-400 text-sm">
-                      No hay transacciones
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
