@@ -84,6 +84,8 @@ Migraciones existentes:
 - `0008` is_validated en internal_transfers
 - `0009` savings en categorytypeenum (`ALTER TYPE ... ADD VALUE IF NOT EXISTS`)
 - `0010` `blocked_from_auto_categorize BOOLEAN NOT NULL DEFAULT false` en transactions
+- `0011` `is_rejected BOOLEAN NOT NULL DEFAULT false` en internal_transfers
+- `0012` `isin VARCHAR(12) UNIQUE` en investment_assets + tablas `investment_keywords` y `transaction_asset_links`
 
 ## PWA (Progressive Web App)
 
@@ -99,14 +101,15 @@ Requisito de instalación: la app debe estar en HTTPS.
 ### Navegación móvil
 - **Desktop (md+)**: sidebar fijo a la izquierda (w-56)
 - **Móvil (<md)**: sidebar oculto, header top con título + `BottomNav.tsx`
-- `BottomNav`: 5 tabs fijos (Inicio, Analítica, Movim., Importar, Más) + sheet overlay para el resto (Trans. internas, Inversiones, Cuentas, Categorías, Salir)
+- `BottomNav`: 5 tabs fijos (Inicio, Analítica, Movim., Importar, Más) + sheet overlay para el resto (Trans. internas, Inv. pendientes, Inversiones, Cuentas, Categorías, Salir)
 - El contenido principal tiene `pb-20 md:pb-6` para no quedar tapado por el bottom nav
 - `paddingBottom: env(safe-area-inset-bottom)` en el bottom bar para iPhones con notch/home indicator
 
 ## Estructura de páginas (frontend)
 
 ### Navegación (Sidebar)
-- **Principal**: Dashboard, Analítica, Transacciones, Trans. internas, Inversiones
+- **Principal**: Dashboard, Analítica, Transacciones, Inversiones
+- **Supervisión**: Trans. internas (`/transfers`), Inv. pendientes (`/investment-links`)
 - **Ajustes**: Cuentas, Importar, Categorías
 - Botón Salir (logout)
 
@@ -138,13 +141,23 @@ Requisito de instalación: la app debe estar en HTTPS.
 - Inicializa desde URL params: `start`, `end`, `account_id`, `category_id`, `category_type`, `metric`
 
 ### Trans. internas (`/transfers`)
-- Lista todas las `InternalTransfer` ordenadas por fecha de la TX (más reciente primero)
-- Columnas: fecha, TX (cuenta saliente + descripción + dropdown de categoría sin auto-learning), RX (cuenta entrante + descripción), importe, estado (Auto/Manual + Validada)
-- Select-all checkbox + acciones bulk: "Validar selección" / "Desvalidar"
-- Por fila: checkbox individual + botón validar (Check, verde si validada) + botón eliminar (Trash2)
-- Eliminar: inserta en `transfer_blocklist` → el par nunca se relinká automáticamente
+- Lista las `InternalTransfer` filtradas por estado, ordenadas por fecha de la TX (más reciente primero)
+- **Tres estados** en `InternalTransfer`: `is_validated`, `is_rejected`, `is_manual`
+  - Pendiente: `!is_validated && !is_rejected`
+  - Validada: `is_validated === true` (también limpia is_rejected)
+  - No validada: `is_rejected === true` (también limpia is_validated)
+- **Filtro de estado** (tabs encima de la tabla, default: "Pendientes de validar"):
+  - `Pendientes de validar` → `!is_validated && !is_rejected`
+  - `No validadas` → `is_rejected === true`
+  - `Validadas` → `is_validated === true`
+  - `Todas` → sin filtro
+- Columnas: fecha, TX (cuenta saliente + descripción + dropdown de categoría sin auto-learning), RX (cuenta entrante + descripción), importe, estado (Auto/Manual + Validada/No validada)
+- Select-all checkbox + acciones bulk: "Validar" / "No validar" / "Pendiente" (actúan sobre el filtro activo)
+- Por fila: checkbox individual + botón ✓ (verde si validada, click vuelve a pendiente) + botón ✗ (rojo si rechazada, click vuelve a pendiente)
+- No hay botón de eliminar — las transferencias nunca se borran desde la UI
 - Botón "Detectar ahora": `POST /transfers/detect` sobre todos los txs no linkados
 - Si URL contiene `?highlight={id}`: la fila se resalta en azul y hace scroll al centro
+- Endpoints: `POST /transfers/validate`, `POST /transfers/reject`, `POST /transfers/reset`
 
 ### Importar (`/import`)
 - Agrupado por banco
@@ -162,8 +175,27 @@ Requisito de instalación: la app debe estar en HTTPS.
 - Muestra `last_transaction_date` en cada tarjeta (computed en el endpoint)
 
 ### Inversiones (`/investments`)
-- Registro de activos y operaciones buy/sell
+- Registro de activos (ticker, nombre, tipo, ISIN) y operaciones buy/sell
 - Posiciones con precio actual y P&L
+- `PUT /investments/assets/{id}` permite editar incluido el ISIN
+
+### Inv. pendientes (`/investment-links`) — Supervisión
+- Vincula transacciones bancarias categorizadas como "Inversión" a activos concretos (`InvestmentAsset`)
+- **Dos modelos de apoyo**: `InvestmentKeyword` (keywords por activo para auto-aprendizaje), `TransactionAssetLink` (vínculo tx↔asset con estado)
+- **Tres estados** en `TransactionAssetLink`: `is_validated`, `is_rejected`, o ninguno (pendiente)
+- **Filtros** (tabs, default "Sin asignar"):
+  - `Sin asignar` → `link === null`
+  - `Pendientes` → `link && !is_validated && !is_rejected`
+  - `Validadas` → `link.is_validated`
+  - `No validadas` → `link.is_rejected`
+  - `Todas` → todo
+- **Columnas**: fecha, descripción+cuenta, importe, activo (AssetDropdown si sin asignar), estado (Auto/Manual + Validada/No validada)
+- **Auto-detección** (`POST /investments/links/detect`): extrae ISIN con regex de descripciones Trade Republic; también aplica keywords aprendidos
+- **Auto-aprendizaje**: al asignar manualmente un activo, aprende keywords de la descripción y los aplica a transacciones no vinculadas
+- **Bulk actions**: Validar / No validar / Pendiente (solo rows con link)
+- **Acciones por fila**: ✓ (toggle validate/pending) + ✗ (toggle reject/pending) + papelera (elimina solo el link, no la transacción)
+- Endpoints: `GET/POST /investments/links`, `/detect`, `/validate`, `/reject`, `/reset`, `DELETE /investments/links/{id}`
+- Servicio: `services/investment_linker.py` — `auto_link_transactions()`, `learn_and_apply()`
 
 ## Lógica clave del backend
 

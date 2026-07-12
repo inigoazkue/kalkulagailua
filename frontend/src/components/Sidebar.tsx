@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, List, TrendingUp, LogOut, BarChart2, Settings, Wallet, Upload, Tag, ArrowLeftRight, Database } from 'lucide-react'
+import { LayoutDashboard, List, TrendingUp, LogOut, BarChart2, Settings, Wallet, Upload, Tag, ArrowLeftRight, Database, ShieldCheck, ClipboardList } from 'lucide-react'
 import { clsx } from 'clsx'
 import { APP_VERSION } from '../utils/version'
 
@@ -7,8 +7,12 @@ const mainNav = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/analytics', label: 'Analítica', icon: BarChart2 },
   { to: '/transactions', label: 'Transacciones', icon: List },
-  { to: '/transfers', label: 'Trans. internas', icon: ArrowLeftRight },
   { to: '/investments', label: 'Inversiones', icon: TrendingUp },
+]
+
+const supervisionNav = [
+  { to: '/transfers', label: 'Trans. internas', icon: ArrowLeftRight },
+  { to: '/investment-links', label: 'Inv. pendientes', icon: ClipboardList },
 ]
 
 const settingsNav = [
@@ -46,6 +50,16 @@ export default function Sidebar({ onLogout }: { onLogout: () => void }) {
       <nav className="flex flex-col gap-1 flex-1">
         {mainNav.map(item => <NavItem key={item.to} {...item} />)}
       </nav>
+
+      <div className="mt-4">
+        <div className="flex items-center gap-2 px-3 py-1 mb-1">
+          <ShieldCheck size={13} className="text-slate-500" />
+          <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Supervisión</span>
+        </div>
+        <div className="flex flex-col gap-1">
+          {supervisionNav.map(item => <NavItem key={item.to} {...item} />)}
+        </div>
+      </div>
 
       <div className="mt-4">
         <div className="flex items-center gap-2 px-3 py-1 mb-1">

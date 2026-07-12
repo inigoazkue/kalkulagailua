@@ -4,12 +4,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, func
 from app.database import AsyncSessionLocal
 from app.models import Category, CategoryKeyword, CategoryTypeEnum
-from app.routers import transactions, categories, investments, imports, accounts, transfers, backup
+from app.routers import transactions, categories, investments, imports, accounts, transfers, backup, investment_links
+from app.routers import fund_transfers
 from app.routers import auth as auth_router
 from app.auth import verify_token
 from app.services.categorizer import auto_categorize_all
 
-app = FastAPI(title="Kalkulagailua API", version="1.2.1")
+app = FastAPI(title="Kalkulagailua API", version="1.4.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -29,6 +30,8 @@ app.include_router(imports.router, prefix="/api", **protected)
 app.include_router(accounts.router, prefix="/api", **protected)
 app.include_router(transfers.router, prefix="/api", **protected)
 app.include_router(backup.router, prefix="/api", **protected)
+app.include_router(investment_links.router, prefix="/api", **protected)
+app.include_router(fund_transfers.router, prefix="/api", **protected)
 
 DEFAULT_CATEGORIES = [
     {"name": "Nómina", "category_type": CategoryTypeEnum.income, "color": "#22c55e", "keywords": ["nomina", "nómina", "salario"]},

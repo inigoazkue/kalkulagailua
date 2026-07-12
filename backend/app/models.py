@@ -2,7 +2,7 @@ import enum
 from datetime import datetime, date
 from decimal import Decimal
 from sqlalchemy import (
-    Integer, String, Numeric, Boolean, DateTime, Date, ForeignKey,
+    Integer, String, Numeric, Boolean, DateTime, Date, ForeignKey, Text,
     Enum as SAEnum, UniqueConstraint, func
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -132,9 +132,11 @@ class InvestmentAsset(Base):
     __tablename__ = "investment_assets"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    ticker: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
+    ticker: Mapped[str | None] = mapped_column(String(50), nullable=True, unique=True)
     name: Mapped[str] = mapped_column(String(500), nullable=False)
     asset_type: Mapped[AssetTypeEnum] = mapped_column(SAEnum(AssetTypeEnum), nullable=False)
+    isin: Mapped[str | None] = mapped_column(String(12), nullable=True, unique=True)
+    alias: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
     transactions: Mapped[list["InvestmentTransaction"]] = relationship(
@@ -143,6 +145,44 @@ class InvestmentAsset(Base):
     price_cache: Mapped[list["PriceCache"]] = relationship(
         "PriceCache", back_populates="asset", cascade="all, delete-orphan"
     )
+    investment_keywords: Mapped[list["InvestmentKeyword"]] = relationship(
+        "InvestmentKeyword", back_populates="asset", cascade="all, delete-orphan"
+    )
+    asset_links: Mapped[list["TransactionAssetLink"]] = relationship(
+        "TransactionAssetLink", back_populates="asset"
+    )
+    fund_transfers_from: Mapped[list["FundTransfer"]] = relationship(
+        "FundTransfer", foreign_keys="FundTransfer.from_asset_id", back_populates="from_asset"
+    )
+    fund_transfers_to: Mapped[list["FundTransfer"]] = relationship(
+        "FundTransfer", foreign_keys="FundTransfer.to_asset_id", back_populates="to_asset"
+    )
+
+
+class InvestmentKeyword(Base):
+    __tablename__ = "investment_keywords"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    asset_id: Mapped[int] = mapped_column(Integer, ForeignKey("investment_assets.id"), nullable=False)
+    keyword: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    asset: Mapped["InvestmentAsset"] = relationship("InvestmentAsset", back_populates="investment_keywords")
+
+
+class TransactionAssetLink(Base):
+    __tablename__ = "transaction_asset_links"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    transaction_id: Mapped[int] = mapped_column(Integer, ForeignKey("transactions.id"), nullable=False, unique=True)
+    asset_id: Mapped[int] = mapped_column(Integer, ForeignKey("investment_assets.id"), nullable=False)
+    is_auto: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_validated: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_rejected: Mapped[bool] = mapped_column(Boolean, default=False)
+    linked_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+    quantity: Mapped[Decimal | None] = mapped_column(Numeric(24, 8), nullable=True)
+
+    transaction: Mapped["Transaction"] = relationship("Transaction")
+    asset: Mapped["InvestmentAsset"] = relationship("InvestmentAsset", back_populates="asset_links")
 
 
 class InvestmentTransaction(Base):
@@ -163,6 +203,29 @@ class InvestmentTransaction(Base):
     account: Mapped["Account"] = relationship("Account", back_populates="investment_transactions")
 
 
+class FundTransfer(Base):
+    __tablename__ = "fund_transfers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    from_asset_id: Mapped[int] = mapped_column(Integer, ForeignKey("investment_assets.id"), nullable=False)
+    to_asset_id: Mapped[int] = mapped_column(Integer, ForeignKey("investment_assets.id"), nullable=False)
+    withdrawal_date: Mapped[date] = mapped_column(Date, nullable=False)
+    withdrawal_amount: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    exit_fee: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=Decimal("0"))
+    arrival_date: Mapped[date] = mapped_column(Date, nullable=False)
+    arrival_amount: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False)
+    entry_fee: Mapped[Decimal] = mapped_column(Numeric(18, 4), nullable=False, default=Decimal("0"))
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+
+    from_asset: Mapped["InvestmentAsset"] = relationship(
+        "InvestmentAsset", foreign_keys=[from_asset_id], back_populates="fund_transfers_from"
+    )
+    to_asset: Mapped["InvestmentAsset"] = relationship(
+        "InvestmentAsset", foreign_keys=[to_asset_id], back_populates="fund_transfers_to"
+    )
+
+
 class InternalTransfer(Base):
     __tablename__ = "internal_transfers"
 
@@ -172,6 +235,7 @@ class InternalTransfer(Base):
     matched_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     is_manual: Mapped[bool] = mapped_column(Boolean, default=False)
     is_validated: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_rejected: Mapped[bool] = mapped_column(Boolean, default=False)
 
     tx_out: Mapped["Transaction"] = relationship("Transaction", foreign_keys=[tx_out_id])
     tx_in: Mapped["Transaction"] = relationship("Transaction", foreign_keys=[tx_in_id])

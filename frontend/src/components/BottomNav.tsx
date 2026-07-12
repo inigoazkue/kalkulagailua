@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, BarChart2, List, Upload,
   MoreHorizontal, ArrowLeftRight, TrendingUp,
-  Wallet, Tag, LogOut, X, Database,
+  Wallet, Tag, LogOut, X, Database, ClipboardList,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { APP_VERSION } from '../utils/version'
@@ -17,6 +17,7 @@ const primaryNav = [
 
 const moreMainNav = [
   { to: '/transfers', label: 'Trans. internas', icon: ArrowLeftRight },
+  { to: '/investment-links', label: 'Inv. pendientes', icon: ClipboardList },
   { to: '/investments', label: 'Inversiones', icon: TrendingUp },
 ]
 

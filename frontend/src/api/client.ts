@@ -99,9 +99,11 @@ export interface TransactionSummary {
 
 export interface InvestmentAsset {
   id: number
-  ticker: string
+  ticker: string | null
   name: string
   asset_type: 'stock' | 'etf' | 'fund' | 'crypto'
+  isin: string | null
+  alias: string | null
   created_at: string
 }
 
@@ -113,6 +115,34 @@ export interface InvestmentPosition {
   current_value: string
   pnl: string
   pnl_pct: string
+}
+
+export interface IsinLookupResult {
+  isin: string
+  name: string
+  ticker: string | null
+  asset_type: string
+  found: boolean
+}
+
+export interface PortfolioHistoryPoint {
+  date: string
+  value: string
+  contributions: string
+}
+
+export interface FundTransfer {
+  id: number
+  from_asset: { id: number; ticker: string | null; name: string; isin: string | null; alias: string | null }
+  to_asset: { id: number; ticker: string | null; name: string; isin: string | null; alias: string | null }
+  withdrawal_date: string
+  withdrawal_amount: string
+  exit_fee: string
+  arrival_date: string
+  arrival_amount: string
+  entry_fee: string
+  notes: string | null
+  created_at: string
 }
 
 export interface ImportResult {
@@ -129,8 +159,24 @@ export interface InternalTransfer {
   matched_at: string
   is_manual: boolean
   is_validated: boolean
+  is_rejected: boolean
   tx_out: Transaction
   tx_in: Transaction
+}
+
+export interface TransactionAssetLink {
+  id: number
+  transaction_id: number
+  asset: { id: number; ticker: string | null; name: string; isin: string | null }
+  is_auto: boolean
+  is_validated: boolean
+  is_rejected: boolean
+  linked_at: string
+}
+
+export interface InvestmentLinkRow {
+  transaction: Transaction
+  link: TransactionAssetLink | null
 }
 
 export const fetchAccounts = () => api.get<Account[]>('/accounts').then(r => r.data)
@@ -176,6 +222,36 @@ export const fetchAssets = () =>
 export const createAsset = (data: { ticker: string; asset_type: string }) =>
   api.post<InvestmentAsset>('/investments/assets', data).then(r => r.data)
 
+export const createAssetByIsin = (isin: string, alias?: string) =>
+  api.post<InvestmentAsset>('/investments/assets', { isin, alias }).then(r => r.data)
+
+export const updateAsset = (id: number, data: Partial<{ name: string; ticker: string; asset_type: string; isin: string; alias: string }>) =>
+  api.put<InvestmentAsset>(`/investments/assets/${id}`, data).then(r => r.data)
+
+export const syncAssetPrices = (id: number) =>
+  api.post<{ synced: number }>(`/investments/assets/${id}/sync-prices`).then(r => r.data)
+
+export const lookupIsin = (isin: string) =>
+  api.post<IsinLookupResult>('/investments/lookup-isin', { isin }).then(r => r.data)
+
+export const fetchPortfolioHistory = (start?: string, end?: string) =>
+  api.get<PortfolioHistoryPoint[]>('/investments/portfolio/history', { params: { start, end } }).then(r => r.data)
+
+export const fetchFundTransfers = () =>
+  api.get<FundTransfer[]>('/investments/fund-transfers').then(r => r.data)
+
+export const createFundTransfer = (data: {
+  from_asset_id: number; to_asset_id: number
+  withdrawal_date: string; withdrawal_amount: number; exit_fee: number
+  arrival_date: string; arrival_amount: number; entry_fee: number; notes?: string
+}) => api.post<FundTransfer>('/investments/fund-transfers', data).then(r => r.data)
+
+export const updateFundTransfer = (id: number, data: Parameters<typeof createFundTransfer>[0]) =>
+  api.put<FundTransfer>(`/investments/fund-transfers/${id}`, data).then(r => r.data)
+
+export const deleteFundTransfer = (id: number) =>
+  api.delete(`/investments/fund-transfers/${id}`)
+
 export const fetchPositions = () =>
   api.get<InvestmentPosition[]>('/investments/positions').then(r => r.data)
 
@@ -206,14 +282,38 @@ export const fetchAnalyticsData = (params: { start?: string; end?: string; accou
 export const fetchTransfers = () =>
   api.get<InternalTransfer[]>('/transfers').then(r => r.data)
 
-export const deleteTransfer = (id: number) =>
-  api.delete(`/transfers/${id}`)
-
 export const detectTransfers = () =>
   api.post<{ created: number }>('/transfers/detect').then(r => r.data)
 
 export const validateTransfers = (ids: number[], validated: boolean) =>
   api.post<{ updated: number }>('/transfers/validate', { ids, validated }).then(r => r.data)
+
+export const rejectTransfers = (ids: number[], rejected: boolean) =>
+  api.post<{ updated: number }>('/transfers/reject', { ids, rejected }).then(r => r.data)
+
+export const resetTransfers = (ids: number[]) =>
+  api.post<{ updated: number }>('/transfers/reset', { ids }).then(r => r.data)
+
+export const fetchInvestmentLinks = () =>
+  api.get<InvestmentLinkRow[]>('/investments/links').then(r => r.data)
+
+export const createInvestmentLink = (transaction_id: number, asset_id: number) =>
+  api.post<TransactionAssetLink>('/investments/links', { transaction_id, asset_id }).then(r => r.data)
+
+export const detectInvestmentLinks = () =>
+  api.post<{ created: number }>('/investments/links/detect').then(r => r.data)
+
+export const validateInvestmentLinks = (ids: number[]) =>
+  api.post<{ updated: number }>('/investments/links/validate', { ids }).then(r => r.data)
+
+export const rejectInvestmentLinks = (ids: number[]) =>
+  api.post<{ updated: number }>('/investments/links/reject', { ids }).then(r => r.data)
+
+export const resetInvestmentLinks = (ids: number[]) =>
+  api.post<{ updated: number }>('/investments/links/reset', { ids }).then(r => r.data)
+
+export const deleteInvestmentLink = (id: number) =>
+  api.delete(`/investments/links/${id}`)
 
 export const downloadBackup = async () => {
   const res = await api.get('/backup/db', { responseType: 'blob' })

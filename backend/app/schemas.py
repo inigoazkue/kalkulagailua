@@ -148,6 +148,7 @@ class InternalTransferOut(BaseModel):
     matched_at: datetime
     is_manual: bool
     is_validated: bool
+    is_rejected: bool
     tx_out: TransactionOut
     tx_in: TransactionOut
 
@@ -159,11 +160,18 @@ class ValidateBulkIn(BaseModel):
     validated: bool = True
 
 
+class RejectBulkIn(BaseModel):
+    ids: list[int]
+    rejected: bool = True
+
+
 class InvestmentAssetOut(BaseModel):
     id: int
-    ticker: str
+    ticker: Optional[str] = None
     name: str
     asset_type: AssetTypeEnum
+    isin: Optional[str] = None
+    alias: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -172,6 +180,20 @@ class InvestmentAssetOut(BaseModel):
 class InvestmentAssetCreate(BaseModel):
     ticker: str
     asset_type: AssetTypeEnum
+    isin: Optional[str] = None
+
+
+class InvestmentAssetCreateByIsin(BaseModel):
+    isin: str
+    alias: Optional[str] = None
+
+
+class InvestmentAssetUpdate(BaseModel):
+    name: Optional[str] = None
+    ticker: Optional[str] = None
+    asset_type: Optional[AssetTypeEnum] = None
+    isin: Optional[str] = None
+    alias: Optional[str] = None
 
 
 class InvestmentTransactionOut(BaseModel):
@@ -205,3 +227,83 @@ class InvestmentPositionOut(BaseModel):
     current_value: Decimal
     pnl: Decimal
     pnl_pct: Decimal
+
+
+class AssetSlimOut(BaseModel):
+    id: int
+    ticker: Optional[str] = None
+    name: str
+    isin: Optional[str] = None
+    alias: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class TransactionAssetLinkOut(BaseModel):
+    id: int
+    transaction_id: int
+    asset: AssetSlimOut
+    is_auto: bool
+    is_validated: bool
+    is_rejected: bool
+    linked_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class InvestmentLinkRow(BaseModel):
+    transaction: TransactionOut
+    link: Optional[TransactionAssetLinkOut]
+
+    model_config = {"from_attributes": True}
+
+
+class CreateLinkIn(BaseModel):
+    transaction_id: int
+    asset_id: int
+
+
+class LinkBulkIn(BaseModel):
+    ids: list[int]  # link IDs (TransactionAssetLink.id)
+
+
+class FundTransferOut(BaseModel):
+    id: int
+    from_asset: AssetSlimOut
+    to_asset: AssetSlimOut
+    withdrawal_date: date
+    withdrawal_amount: Decimal
+    exit_fee: Decimal
+    arrival_date: date
+    arrival_amount: Decimal
+    entry_fee: Decimal
+    notes: Optional[str]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class FundTransferCreate(BaseModel):
+    from_asset_id: int
+    to_asset_id: int
+    withdrawal_date: date
+    withdrawal_amount: Decimal
+    exit_fee: Decimal = Decimal("0")
+    arrival_date: date
+    arrival_amount: Decimal
+    entry_fee: Decimal = Decimal("0")
+    notes: Optional[str] = None
+
+
+class PortfolioHistoryPoint(BaseModel):
+    date: date
+    value: Decimal
+    contributions: Decimal
+
+
+class IsinLookupResult(BaseModel):
+    isin: str
+    name: str
+    ticker: Optional[str]
+    asset_type: str
+    found: bool

@@ -1,8 +1,8 @@
 import { useRef, useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { fetchTransfers, deleteTransfer, detectTransfers, validateTransfers, fetchAccounts, fetchCategories, assignCategory } from '../api/client'
-import { Trash2, ArrowLeftRight, Search, Check, ChevronDown } from 'lucide-react'
+import { fetchTransfers, detectTransfers, validateTransfers, rejectTransfers, resetTransfers, fetchAccounts, fetchCategories, assignCategory } from '../api/client'
+import { X, ArrowLeftRight, Search, Check, ChevronDown } from 'lucide-react'
 import { clsx } from 'clsx'
 import PrivacyToggle from '../components/PrivacyToggle'
 import { Sensitive } from '../components/Sensitive'
@@ -85,11 +85,28 @@ function TxCategoryDropdown({ txId, current }: { txId: number; current: { id: nu
   )
 }
 
+type FilterStatus = 'pendientes' | 'validadas' | 'no_validadas' | 'todas'
+
+const FILTER_OPTIONS: { value: FilterStatus; label: string }[] = [
+  { value: 'pendientes', label: 'Pendientes de validar' },
+  { value: 'no_validadas', label: 'No validadas' },
+  { value: 'validadas', label: 'Validadas' },
+  { value: 'todas', label: 'Todas' },
+]
+
+function applyFilter(transfers: any[], filter: FilterStatus) {
+  if (filter === 'validadas') return transfers.filter(t => t.is_validated)
+  if (filter === 'no_validadas') return transfers.filter(t => t.is_rejected)
+  if (filter === 'pendientes') return transfers.filter(t => !t.is_validated && !t.is_rejected)
+  return transfers
+}
+
 export default function Transfers() {
   const [searchParams] = useSearchParams()
   const highlightId = searchParams.get('highlight') ? Number(searchParams.get('highlight')) : null
 
   const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>('pendientes')
 
   const qc = useQueryClient()
   const { data: transfers = [], isLoading } = useQuery({ queryKey: ['transfers'], queryFn: fetchTransfers })
@@ -108,7 +125,8 @@ export default function Transfers() {
 
   const accountName = (id: number) => accounts.find(a => a.id === id)?.name ?? `#${id}`
 
-  const allIds = transfers.map(t => t.id)
+  const filteredTransfers = applyFilter(transfers, filterStatus)
+  const allIds = filteredTransfers.map(t => t.id)
   const allSelected = allIds.length > 0 && allIds.every(id => selected.has(id))
   const someSelected = selected.size > 0
 
@@ -129,14 +147,6 @@ export default function Transfers() {
     })
   }
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => deleteTransfer(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['transfers'] })
-      qc.invalidateQueries({ queryKey: ['transactions'] })
-    },
-  })
-
   const detectMutation = useMutation({
     mutationFn: detectTransfers,
     onSuccess: (data) => {
@@ -153,6 +163,23 @@ export default function Transfers() {
   const validateMutation = useMutation({
     mutationFn: ({ ids, validated }: { ids: number[]; validated: boolean }) =>
       validateTransfers(ids, validated),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['transfers'] })
+      setSelected(new Set())
+    },
+  })
+
+  const rejectMutation = useMutation({
+    mutationFn: ({ ids, rejected }: { ids: number[]; rejected: boolean }) =>
+      rejectTransfers(ids, rejected),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['transfers'] })
+      setSelected(new Set())
+    },
+  })
+
+  const resetMutation = useMutation({
+    mutationFn: (ids: number[]) => resetTransfers(ids),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['transfers'] })
       setSelected(new Set())
@@ -181,6 +208,24 @@ export default function Transfers() {
         </div>
       </div>
 
+      {/* Filter tabs */}
+      <div className="flex items-center gap-1 bg-slate-800/60 rounded-lg p-1 self-start w-fit">
+        {FILTER_OPTIONS.map(opt => (
+          <button
+            key={opt.value}
+            onClick={() => { setFilterStatus(opt.value); setSelected(new Set()) }}
+            className={clsx(
+              'px-3 py-1.5 text-xs rounded-md transition-colors',
+              filterStatus === opt.value
+                ? 'bg-slate-600 text-white'
+                : 'text-slate-400 hover:text-slate-200'
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
       {isLoading ? (
         <div className="text-slate-400 text-sm">Cargando...</div>
       ) : transfers.length === 0 ? (
@@ -188,6 +233,11 @@ export default function Transfers() {
           <ArrowLeftRight size={32} className="text-slate-600" />
           <p className="text-slate-400 text-sm">No hay transferencias internas detectadas.</p>
           <p className="text-xs text-slate-500">Se detectan al importar, o usa el botón "Detectar ahora".</p>
+        </div>
+      ) : filteredTransfers.length === 0 ? (
+        <div className="bg-slate-800 rounded-xl p-12 flex flex-col items-center gap-3 text-center">
+          <ArrowLeftRight size={32} className="text-slate-600" />
+          <p className="text-slate-400 text-sm">No hay transferencias en este filtro.</p>
         </div>
       ) : (
         <div className="bg-slate-800 rounded-xl overflow-hidden">
@@ -202,25 +252,33 @@ export default function Transfers() {
             />
             {someSelected ? (
               <>
-                <span className="text-xs text-slate-400">{selected.size} seleccionada{selected.size !== 1 ? 's' : ''}</span>
+                <span className="text-xs text-slate-400">{selected.size} seleccionada{selected.size !== 1 ? 's' : ''} de {filteredTransfers.length}</span>
                 <button
                   onClick={() => validateMutation.mutate({ ids: [...selected], validated: true })}
-                  disabled={validateMutation.isPending}
+                  disabled={validateMutation.isPending || rejectMutation.isPending}
                   className="flex items-center gap-1.5 px-3 py-1 text-xs bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white rounded-lg transition-colors"
                 >
                   <Check size={12} />
-                  Validar selección
+                  Validar
                 </button>
                 <button
-                  onClick={() => validateMutation.mutate({ ids: [...selected], validated: false })}
-                  disabled={validateMutation.isPending}
+                  onClick={() => rejectMutation.mutate({ ids: [...selected], rejected: true })}
+                  disabled={validateMutation.isPending || rejectMutation.isPending}
+                  className="flex items-center gap-1.5 px-3 py-1 text-xs bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white rounded-lg transition-colors"
+                >
+                  <X size={12} />
+                  No validar
+                </button>
+                <button
+                  onClick={() => resetMutation.mutate([...selected])}
+                  disabled={validateMutation.isPending || rejectMutation.isPending || resetMutation.isPending}
                   className="px-3 py-1 text-xs bg-slate-600 hover:bg-slate-500 disabled:opacity-50 text-slate-300 rounded-lg transition-colors"
                 >
-                  Desvalidar
+                  Pendiente
                 </button>
               </>
             ) : (
-              <span className="text-xs text-slate-500">{transfers.length} transferencia{transfers.length !== 1 ? 's' : ''}</span>
+              <span className="text-xs text-slate-500">{filteredTransfers.length} transferencia{filteredTransfers.length !== 1 ? 's' : ''}</span>
             )}
           </div>
 
@@ -238,7 +296,7 @@ export default function Transfers() {
               </tr>
             </thead>
             <tbody>
-              {transfers.map(t => {
+              {filteredTransfers.map(t => {
                 const isHighlighted = t.id === highlightId
                 const isChecked = selected.has(t.id)
                 return (
@@ -292,14 +350,22 @@ export default function Transfers() {
                             Validada
                           </span>
                         )}
+                        {t.is_rejected && (
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 flex items-center gap-1">
+                            <X size={10} />
+                            No validada
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
                         <button
-                          onClick={() => validateMutation.mutate({ ids: [t.id], validated: !t.is_validated })}
-                          disabled={validateMutation.isPending}
-                          title={t.is_validated ? 'Quitar validación' : 'Validar'}
+                          onClick={() => t.is_validated
+                            ? resetMutation.mutate([t.id])
+                            : validateMutation.mutate({ ids: [t.id], validated: true })}
+                          disabled={validateMutation.isPending || rejectMutation.isPending || resetMutation.isPending}
+                          title={t.is_validated ? 'Quitar validación (volver a pendiente)' : 'Validar'}
                           className={clsx(
                             'p-1.5 rounded-lg transition-colors',
                             t.is_validated
@@ -310,12 +376,19 @@ export default function Transfers() {
                           <Check size={14} />
                         </button>
                         <button
-                          onClick={() => deleteMutation.mutate(t.id)}
-                          disabled={deleteMutation.isPending}
-                          title="Desmarcar como transferencia interna"
-                          className="p-1.5 text-slate-500 hover:text-red-400 rounded-lg hover:bg-slate-700 transition-colors"
+                          onClick={() => t.is_rejected
+                            ? resetMutation.mutate([t.id])
+                            : rejectMutation.mutate({ ids: [t.id], rejected: true })}
+                          disabled={validateMutation.isPending || rejectMutation.isPending || resetMutation.isPending}
+                          title={t.is_rejected ? 'Quitar rechazo (volver a pendiente)' : 'No validar'}
+                          className={clsx(
+                            'p-1.5 rounded-lg transition-colors',
+                            t.is_rejected
+                              ? 'text-red-400 hover:text-slate-400 hover:bg-slate-700'
+                              : 'text-slate-500 hover:text-red-400 hover:bg-slate-700'
+                          )}
                         >
-                          <Trash2 size={14} />
+                          <X size={14} />
                         </button>
                       </div>
                     </td>

@@ -4,7 +4,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload, aliased
 from app.database import get_db
 from app.models import InternalTransfer, Transaction, TransactionCategory, TransferBlocklist
-from app.schemas import InternalTransferOut, ValidateBulkIn
+from app.schemas import InternalTransferOut, ValidateBulkIn, RejectBulkIn
 from app.services.transfer_matcher import match_all_transfers, auto_categorize_savings_transfers
 
 router = APIRouter(prefix="/transfers", tags=["transfers"])
@@ -46,11 +46,41 @@ async def detect_transfers(db: AsyncSession = Depends(get_db)):
 
 @router.post("/validate")
 async def validate_transfers(body: ValidateBulkIn, db: AsyncSession = Depends(get_db)):
-    """Validate or unvalidate a batch of transfers."""
+    """Validate or unvalidate a batch of transfers. Validating also clears is_rejected."""
+    values = {"is_validated": body.validated}
+    if body.validated:
+        values["is_rejected"] = False
     await db.execute(
         update(InternalTransfer)
         .where(InternalTransfer.id.in_(body.ids))
-        .values(is_validated=body.validated)
+        .values(**values)
+    )
+    await db.commit()
+    return {"updated": len(body.ids)}
+
+
+@router.post("/reject")
+async def reject_transfers(body: RejectBulkIn, db: AsyncSession = Depends(get_db)):
+    """Mark transfers as rejected (no validar) or clear that mark. Rejecting also clears is_validated."""
+    values = {"is_rejected": body.rejected}
+    if body.rejected:
+        values["is_validated"] = False
+    await db.execute(
+        update(InternalTransfer)
+        .where(InternalTransfer.id.in_(body.ids))
+        .values(**values)
+    )
+    await db.commit()
+    return {"updated": len(body.ids)}
+
+
+@router.post("/reset")
+async def reset_transfers(body: ValidateBulkIn, db: AsyncSession = Depends(get_db)):
+    """Move transfers back to pending (clears both is_validated and is_rejected)."""
+    await db.execute(
+        update(InternalTransfer)
+        .where(InternalTransfer.id.in_(body.ids))
+        .values(is_validated=False, is_rejected=False)
     )
     await db.commit()
     return {"updated": len(body.ids)}

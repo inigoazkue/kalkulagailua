@@ -127,3 +127,34 @@ async def fetch_asset_name(ticker: str, asset_type) -> str:
         return name
     except Exception:
         return ticker
+
+
+async def fetch_and_store_history(asset: InvestmentAsset, db: AsyncSession) -> int:
+    """Download full price history for an asset and store in PriceCache. Returns count stored."""
+    if not asset.ticker:
+        return 0
+    try:
+        import yfinance as yf
+        from datetime import date, timedelta
+        t = yf.Ticker(asset.ticker)
+        hist = t.history(period="max")
+        if hist.empty:
+            return 0
+        # Get existing dates to avoid duplicates
+        existing = set(
+            (await db.execute(
+                select(PriceCache.price_date).where(PriceCache.asset_id == asset.id)
+            )).scalars().all()
+        )
+        count = 0
+        for idx, row in hist.iterrows():
+            price_date = idx.date() if hasattr(idx, 'date') else idx
+            if price_date not in existing:
+                db.add(PriceCache(asset_id=asset.id, price_date=price_date, price=Decimal(str(row['Close']))))
+                existing.add(price_date)
+                count += 1
+        if count:
+            await db.flush()
+        return count
+    except Exception:
+        return 0
