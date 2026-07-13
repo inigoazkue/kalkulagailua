@@ -26,8 +26,11 @@ Puertos: backend en `8000`, frontend en `3001`.
 
 ## Fuentes de datos externas
 
-- Precios ISINs (acciones/ETFs/fondos): Yahoo Finance via `yfinance`
-- Precios crypto: CoinGecko API (gratuita, históricos incluidos)
+- **Acciones / ETFs**: Yahoo Finance via `yfinance` (ticker directo)
+- **Fondos UCITS sin ticker de bolsa**: `_yahoo_search_ticker(isin)` en `services/prices.py` — llama a `https://query2.finance.yahoo.com/v1/finance/search?q={isin}`, obtiene el código interno `0P...` y descarga el histórico NAV via `yfinance`
+- **Crypto**: CoinGecko API (gratuita, históricos incluidos)
+- Prioridad en búsqueda: ticker real de bolsa (p.ej. `1810.HK`) > código `0P...` > variante ISIN
+- Si se descubre un ticker real de bolsa via ISIN, se persiste en `asset.ticker` para búsquedas futuras
 
 ## Bancos y formatos de importación
 
@@ -91,7 +94,7 @@ Migraciones existentes:
 
 Archivos en `frontend/public/`:
 - `manifest.json` — nombre, iconos, display: standalone, theme/background color
-- `icon.png` (512x512) — calculadora verde sobre tarjeta navy redondeada (fondo slate/verde igual que el icono anterior), sirve para launcher y splash. Generado componiendo el glifo de `calculadora.png` (aportado por el usuario, trazo negro sobre transparente) recoloreado a verde de marca sobre el fondo de la marca
+- `icon.png` (512x512) — fondo beige redondeado (#fdf8f0), calculadora con contorno azul oscuro (#1e5ab4). Generado con Pillow (disponible en el servidor, no en el container) ejecutando `/tmp/gen_logo.py`, resultado copiado a `frontend/public/icon.png`
 - `sw.js` — service worker: network-first para assets estáticos, nunca intercepta `/api/`
 
 Registrado en `main.tsx` (window load event). El SW habilita la instalación nativa en Android vía Chrome → "Añadir a pantalla de inicio".
@@ -104,6 +107,14 @@ Requisito de instalación: la app debe estar en HTTPS.
 - `BottomNav`: 5 tabs fijos (Inicio, Analítica, Movim., Importar, Más) + sheet overlay para el resto (Trans. internas, Inv. pendientes, Inversiones, Cuentas, Categorías, Salir)
 - El contenido principal tiene `pb-20 md:pb-6` para no quedar tapado por el bottom nav
 - `paddingBottom: env(safe-area-inset-bottom)` en el bottom bar para iPhones con notch/home indicator
+
+### Vistas móvil responsive
+Páginas que tienen tabla en desktop y cards en móvil (`md:hidden` / `hidden md:block`):
+- **Transacciones**: cards con descripción, fecha, cuenta, importe, `CategoryDropdown` inline
+- **Trans. internas**: cards con fecha, importe, Desde/Hasta, estado, botones validar/rechazar/pendiente y `TxCategoryDropdown`; checkbox de selección masiva solo en desktop
+- **Inv. pendientes**: cards con fecha, importe, descripción, cuenta, activo asignado (o `AssetDropdown`), estado y acciones (✓/✗/🗑); selección masiva solo en desktop
+
+Páginas ya responsive sin tabla: Dashboard, Analítica (grid responsive), Cuentas, Categorías, Inversiones (card grid `grid-cols-1 md:grid-cols-2 xl:grid-cols-3`)
 
 ## Estructura de páginas (frontend)
 
@@ -132,10 +143,10 @@ Requisito de instalación: la app debe estar en HTTPS.
 
 ### Transacciones (`/transactions`)
 - Selector de período (todo/nómina/mes/trimestre/año/entre fechas)
-- Filtro de banco → filtro de cuenta (el banco solo filtra el desplegable de cuentas)
+- Filtro de banco → filtro de cuenta (el banco filtra las transacciones en el backend via `GET /transactions?bank=...`, no solo el desplegable de cuentas)
 - Filtro de tipo de categoría y categoría
 - Badges activos (metric, category) con botón de eliminar
-- Tabla con paginación (50 por página)
+- Tabla en desktop, cards en móvil (ambas con paginación de 50 por página)
 - Dropdown de categoría inline por transacción (con auto-aprendizaje)
 - Si la transacción es `is_internal_transfer=true`: muestra badge "Interna" con link a `/transfers?highlight={transfer_id}` + categoría actual (sin dropdown, sin auto-aprendizaje)
 - Inicializa desde URL params: `start`, `end`, `account_id`, `category_id`, `category_type`, `metric`
@@ -175,9 +186,13 @@ Requisito de instalación: la app debe estar en HTTPS.
 - Muestra `last_transaction_date` en cada tarjeta (computed en el endpoint)
 
 ### Inversiones (`/investments`)
-- Registro de activos (ticker, nombre, tipo, ISIN) y operaciones buy/sell
-- Posiciones con precio actual y P&L
-- `PUT /investments/assets/{id}` permite editar incluido el ISIN
+- Grid de cards por activo con sparkline de 6 meses, precio actual, P&L y rentabilidad
+- **Sparkline**: `<AreaChart>` con `<XAxis dataKey="date" hide />` (necesario para que el tooltip reciba la fecha string, no el índice numérico); los precios del sparkline se pasan como `Number(p.price)` porque la API los serializa como Decimal string
+- Botón de sincronización de precios por activo (también desde el modal de edición)
+- Gráfico de evolución de cartera total (value + contributions) con selector de período
+- Añadir activo por ISIN: lookup en Yahoo Finance para rellenar nombre/ticker/tipo automáticamente
+- `PUT /investments/assets/{id}` permite editar nombre, ticker, ISIN, alias y tipo
+- **Traspasos entre fondos** (`FundTransfersSection`): tabla editable con fecha de salida/llegada, importes y comisiones
 
 ### Inv. pendientes (`/investment-links`) — Supervisión
 - Vincula transacciones bancarias categorizadas como "Inversión" a activos concretos (`InvestmentAsset`)
@@ -228,6 +243,19 @@ El hash `raw_hash` se calcula en `parsers/base.py`:
 Elimina el `TransactionCategory` de esa transacción y pone `blocked_from_auto_categorize=True`.
 La transacción queda sin categoría y nunca será re-categorizada por la rutina de background.
 El dropdown de categorías muestra "Sin categoría" arriba cuando hay categoría actual.
+
+### Borrar categoría (`DELETE /categories/{id}`)
+El modelo `Category.transaction_assignments` tiene `cascade="all, delete-orphan"`. Al borrar una categoría:
+- SQLAlchemy elimina en cascada todos sus `TransactionCategory` (las transacciones pierden la categoría)
+- También elimina todos sus `CategoryKeyword`
+No hace falta lógica manual de desasignación; la cascada lo cubre.
+
+### Quitar keyword de categoría (`PUT /categories/{id}`)
+Cuando `body.keywords` tiene menos keywords que los actuales:
+1. Calcula `removed = old_keywords - new_keywords`
+2. Encuentra los `TransactionCategory` con `is_manual=False` cuyas transacciones hacen ilike con algún keyword eliminado pero NO con ningún keyword restante
+3. Los elimina: las transacciones quedan sin categoría
+Las transacciones que aún matchean algún keyword restante conservan la categoría.
 
 ### Auto-categorización en background
 `auto_categorize_all(db)` en `services/categorizer.py`:

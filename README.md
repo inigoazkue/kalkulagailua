@@ -23,6 +23,7 @@ App web de finanzas personales auto-hospedada. Importas tus extractos bancarios 
 - Página dedicada con validación individual o masiva (select-all), badge de estado y categorización por fila
 - Las transferencias aparecen marcadas en la lista de transacciones con un badge "Interna" que enlaza a la transferencia correspondiente
 - La categoría "Ahorro" se asigna automáticamente al lado saliente de transferencias de cuenta corriente → cuenta de ahorro
+- Vista responsive: cards en móvil, tabla con selección masiva en desktop
 
 ### Dashboard
 - Selector de período: nómina a nómina, mes, trimestre o año
@@ -39,15 +40,21 @@ App web de finanzas personales auto-hospedada. Importas tus extractos bancarios 
 - Gráfico de tarta de gastos por categoría (click en sector → transacciones de esa categoría)
 
 ### Transacciones
-- Filtros combinados: período, banco, cuenta, tipo de categoría, categoría concreta
+- Filtros combinados: período, banco (filtra transacciones en el backend), cuenta, tipo de categoría, categoría concreta
 - Paginación de 50 en 50
 - Asignación de categoría inline con auto-aprendizaje
 - Inicialización desde URL para drill-down desde analítica o dashboard
+- Vista responsive: cards en móvil, tabla en desktop
 
 ### Inversiones
-- Registro de activos: acciones, ETFs, fondos y crypto
+- Registro de activos: acciones, ETFs, fondos y crypto con ISIN
 - Registro de operaciones de compra/venta con cantidad, precio y comisiones
-- Posiciones consolidadas con precio actual (Yahoo Finance / CoinGecko) y P&L
+- Posiciones consolidadas con precio actual (Yahoo Finance / CoinGecko), sparkline de 6 meses y P&L
+- Precios de fondos sin ticker de bolsa obtenidos automáticamente buscando por ISIN en Yahoo Finance
+- Sincronización de histórico de precios desde Yahoo Finance / CoinGecko
+- Traspasos entre fondos: registro con importes de salida/llegada, comisiones y notas
+- Gráfico de evolución de cartera con selección de período (1M / 3M / 6M / 1A / Máx)
+- Vínculos entre transacciones bancarias y activos ("Inv. pendientes") con auto-detección por ISIN
 
 ## Stack
 
